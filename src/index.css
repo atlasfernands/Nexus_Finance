@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Courier New", monospace;
+  
+  --color-brand-green: #00FF9D;
+  --color-brand-red: #FF3D3D;
+  --color-brand-yellow: #FFD600;
+  --color-brand-bg: #0A0B0D;
+  --color-brand-card: #15171C;
+  --color-brand-surface-light: #1E2128;
+  --color-brand-border: #22252C;
+  --color-brand-dim: #8E9299;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-white font-sans selection:bg-brand-green selection:text-black;
+  }
+}
+
+@layer components {
+  .trading-card {
+    @apply bg-brand-card border border-brand-border rounded-xl p-5 shadow-lg;
+  }
+  
+  .kpi-value {
+    @apply font-mono text-xl font-bold tracking-tight;
+  }
+
+  .btn-primary {
+    @apply bg-brand-green text-black font-semibold px-4 py-2 rounded-lg hover:brightness-110 active:scale-95 transition-all;
+  }
+
+  .btn-secondary {
+    @apply bg-brand-surface-light text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-700 active:scale-95 transition-all;
+  }
+
+  .status-badge {
+    @apply font-mono text-[11px] px-3 py-1 bg-brand-green/10 border border-brand-green text-brand-green rounded-full;
+  }
+
+  .nav-group-label {
+    @apply text-[10px] uppercase text-brand-dim tracking-wider mb-2 ml-2 font-bold;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #22252B;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333842;
+}
+
