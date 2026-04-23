@@ -4,94 +4,127 @@
  */
 
 import React from "react";
-import { Home, Coffee, ShoppingCart, Car, Zap, CheckCircle } from "lucide-react";
+import { CheckCircle, Home, Zap } from "lucide-react";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
-import { formatCurrency, cn } from "../lib/utils";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { formatCurrency } from "../lib/utils";
+import { TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export default function HomeModule() {
-  const { state, dispatch } = useFinance();
-  const { transactions } = useFinanceStats();
+  const { dispatch } = useFinance();
+  const { currentPeriodLabel, transactions } = useFinanceStats();
 
-  const homeTransactions = transactions.filter(t => t.subcategoria === "Casa");
-  const totalSpent = homeTransactions.filter(t => t.tipo === "saída" && t.status !== "cancelado").reduce((acc, t) => acc + t.valor, 0);
+  const homeTransactions = transactions.filter(
+    (transaction) => transaction.subcategory === TransactionSubcategory.HOME
+  );
+  const totalSpent = homeTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === TransactionType.EXPENSE &&
+        transaction.status !== TransactionStatus.CANCELLED
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const categories = Array.from(new Set(homeTransactions.map(t => t.categoria)));
-  const categoryData = categories.map(cat => ({
-    name: cat,
-    value: homeTransactions.filter(t => t.categoria === cat && t.tipo === "saída").reduce((acc, t) => acc + t.valor, 0)
-  })).filter(c => c.value > 0).sort((a,b) => b.value - a.value);
+  const categories = Array.from(new Set(homeTransactions.map((transaction) => transaction.category)));
+  const categoryData = categories
+    .map((category) => ({
+      name: category,
+      value: homeTransactions
+        .filter(
+          (transaction) =>
+            transaction.category === category && transaction.type === TransactionType.EXPENSE
+        )
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    }))
+    .filter((category) => category.value > 0)
+    .sort((left, right) => right.value - left.value);
 
-  const pendingBills = homeTransactions.filter(t => t.status === "pendente" && t.tipo === "saída");
+  const pendingBills = homeTransactions.filter(
+    (transaction) =>
+      transaction.status === TransactionStatus.PENDING &&
+      transaction.type === TransactionType.EXPENSE
+  );
 
-  const COLORS = ["#00FF9D", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#10B981"];
+  const colors = ["#00FF9D", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#10B981"];
 
   const markAsPaid = (id: string) => {
-    const t = transactions.find(x => x.id === id);
-    if (t) {
-      dispatch({ type: "UPDATE_TRANSACTION", payload: { ...t, status: "pago" } });
+    const transaction = transactions.find((item) => item.id === id);
+    if (transaction) {
+      dispatch({
+        type: "UPDATE_TRANSACTION",
+        payload: { ...transaction, status: TransactionStatus.PAID },
+      });
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="flex-1 trading-card">
-          <div className="flex items-center gap-2 mb-6 text-white font-bold">
+      <div className="flex flex-col gap-6 md:flex-row">
+        <div className="trading-card flex-1 min-w-0">
+          <div className="mb-6 flex items-center gap-2 font-bold text-white">
             <Home className="text-purple-400" /> Custo de Vida Pessoal
           </div>
+          <p className="-mt-4 mb-4 text-xs text-slate-500">Periodo ativo: {currentPeriodLabel}</p>
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-mono font-bold text-white">{formatCurrency(totalSpent)}</span>
-            <span className="text-xs text-slate-500 uppercase font-medium">Gastos Totais (Mes)</span>
+            <span className="text-4xl font-bold text-white">{formatCurrency(totalSpent)}</span>
+            <span className="text-xs font-medium uppercase text-slate-500">Gastos Totais (Periodo)</span>
           </div>
 
-          <div className="mt-8 h-64 overflow-hidden">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
-                  itemStyle={{ fontSize: "12px", fontFamily: "JetBrains Mono" }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: "10px", color: "#94a3b8" }} />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="mt-8 h-64 min-h-[240px] w-full min-w-0 overflow-hidden">
+            {categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
+                    itemStyle={{ fontSize: "12px", fontFamily: "JetBrains Mono" }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: "10px", color: "#94a3b8" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                Nenhuma despesa residencial disponivel para o grafico.
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="w-full md:w-96 trading-card flex flex-col">
-          <h3 className="text-white font-bold mb-6 flex items-center gap-2">
+        <div className="trading-card flex w-full flex-col md:w-96">
+          <h3 className="mb-6 flex items-center gap-2 font-bold text-white">
             <Zap className="text-brand-yellow" size={18} /> Contas Pendentes
           </h3>
-          <div className="flex-1 space-y-3 overflow-y-auto max-h-[350px] pr-2">
+          <div className="max-h-[350px] flex-1 space-y-3 overflow-y-auto pr-2">
             {pendingBills.length === 0 && (
-              <div className="text-center py-10">
-                <CheckCircle className="mx-auto text-brand-green mb-2" />
+              <div className="py-10 text-center">
+                <CheckCircle className="mx-auto mb-2 text-brand-green" />
                 <p className="text-sm text-slate-500">Tudo em dia!</p>
               </div>
             )}
             {pendingBills.map((bill) => (
-              <div key={bill.id} className="bg-slate-900 border border-brand-border p-3 rounded-lg group">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm font-medium text-white">{bill.descricao}</span>
-                  <span className="text-xs font-mono text-brand-red">{formatCurrency(bill.valor)}</span>
+              <div key={bill.id} className="group rounded-lg border border-brand-border bg-slate-900 p-3">
+                <div className="mb-2 flex items-start justify-between">
+                  <span className="text-sm font-medium text-white">{bill.description}</span>
+                  <span className="text-xs text-brand-red">{formatCurrency(bill.amount)}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">{bill.data}</span>
-                  <button 
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    {bill.date}
+                  </span>
+                  <button
                     onClick={() => markAsPaid(bill.id)}
-                    className="text-[10px] font-bold text-brand-green uppercase tracking-tighter hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="text-[10px] font-bold uppercase tracking-tighter text-brand-green opacity-0 transition-opacity hover:underline group-hover:opacity-100"
                   >
                     Marcar Pago
                   </button>
@@ -99,31 +132,34 @@ export default function HomeModule() {
               </div>
             ))}
           </div>
-          <div className="mt-6 pt-4 border-t border-brand-border text-center">
-            <p className="text-xs text-slate-500">Total pendente: <span className="text-brand-yellow font-mono">{formatCurrency(pendingBills.reduce((acc, b) => acc+b.valor, 0))}</span></p>
+          <div className="mt-6 border-t border-brand-border pt-4 text-center">
+            <p className="text-xs text-slate-500">
+              Total pendente:{" "}
+              <span className="text-brand-yellow">{formatCurrency(pendingBills.reduce((sum, bill) => sum + bill.amount, 0))}</span>
+            </p>
           </div>
         </div>
       </div>
 
       <div className="trading-card">
-         <h3 className="text-white font-bold mb-6">Sugestão de Alocação</h3>
-         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 bg-slate-900 rounded-xl border-l-4 border-brand-green">
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Essencial (50%)</p>
-               <p className="text-sm font-medium text-white">Luz, Água, Aluguel</p>
-            </div>
-            <div className="p-4 bg-slate-900 rounded-xl border-l-4 border-blue-500">
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Desejos (30%)</p>
-               <p className="text-sm font-medium text-white">Lazer, Restaurantes</p>
-            </div>
-            <div className="p-4 bg-slate-900 rounded-xl border-l-4 border-brand-yellow">
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Dívidas/Poup. (20%)</p>
-               <p className="text-sm font-medium text-white">Investimentos, Reservas</p>
-            </div>
-            <div className="p-4 bg-brand-green/5 rounded-xl border border-brand-green/20 flex items-center justify-center">
-               <p className="text-xs text-brand-green font-bold text-center">Analise sua alocação no módulo IA</p>
-            </div>
-         </div>
+        <h3 className="mb-6 font-bold text-white">Sugestao de Alocacao</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="rounded-xl border-l-4 border-brand-green bg-slate-900 p-4">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Essencial (50%)</p>
+            <p className="text-sm font-medium text-white">Luz, Agua, Aluguel</p>
+          </div>
+          <div className="rounded-xl border-l-4 border-blue-500 bg-slate-900 p-4">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Desejos (30%)</p>
+            <p className="text-sm font-medium text-white">Lazer, Restaurantes</p>
+          </div>
+          <div className="rounded-xl border-l-4 border-brand-yellow bg-slate-900 p-4">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Dividas/Poup. (20%)</p>
+            <p className="text-sm font-medium text-white">Investimentos, Reservas</p>
+          </div>
+          <div className="flex items-center justify-center rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
+            <p className="text-center text-xs font-bold text-brand-green">Analise sua alocacao no modulo IA</p>
+          </div>
+        </div>
       </div>
     </div>
   );

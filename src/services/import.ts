@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { Transaction, TransactionSubcategory } from "../types";
+import { Transaction, TransactionType, TransactionSubcategory, TransactionStatus } from "../types";
 import { generateId } from "../lib/utils";
 
 export interface ImportResult {
@@ -168,12 +168,12 @@ export class ImportService {
 
     // Generate warnings for common issues
     if (transactions.length > 0) {
-      const hasInvalidDates = transactions.some(t => !this.isValidDate(t.data));
+      const hasInvalidDates = transactions.some(t => !this.isValidDate(t.date));
       if (hasInvalidDates) {
         warnings.push("Algumas datas podem estar em formato incorreto");
       }
 
-      const hasZeroValues = transactions.some(t => t.valor === 0);
+      const hasZeroValues = transactions.some(t => t.amount === 0);
       if (hasZeroValues) {
         warnings.push("Algumas transações têm valor zero");
       }
@@ -228,65 +228,65 @@ export class ImportService {
     }
 
     // Determine transaction type
-    let tipo: "entrada" | "saída" = "saída";
+    let tipo: TransactionType = TransactionType.EXPENSE;
     if (tipoRaw) {
       const tipoLower = tipoRaw.toLowerCase();
       if (tipoLower.includes("entrada") || tipoLower.includes("🟢") || tipoLower.includes("income") ||
           tipoLower.includes("recebimento") || tipoLower.includes("renda")) {
-        tipo = "entrada";
+        tipo = TransactionType.INCOME;
       } else if (tipoLower.includes("saída") || tipoLower.includes("🔴") || tipoLower.includes("expense") ||
                  tipoLower.includes("pagamento") || tipoLower.includes("despesa")) {
-        tipo = "saída";
+        tipo = TransactionType.EXPENSE;
       } else if (valorRaw < 0) {
-        tipo = "saída";
+        tipo = TransactionType.EXPENSE;
       } else if (valorRaw > 0) {
-        tipo = "entrada";
+        tipo = TransactionType.INCOME;
       }
     } else {
-      tipo = valorRaw >= 0 ? "entrada" : "saída";
+      tipo = valorRaw >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
     }
 
     // Determine subcategoria
-    let subcategoria: TransactionSubcategory = "Casa";
+    let subcategoria: TransactionSubcategory = TransactionSubcategory.HOME;
     if (subcategoriaRaw) {
       const subLower = subcategoriaRaw.toLowerCase();
       if (subLower.includes("loja") || subLower.includes("store") || subLower.includes("mei")) {
-        subcategoria = "Loja";
+        subcategoria = TransactionSubcategory.STORE;
       }
     } else if (categoria) {
       // Try to extract subcategoria from categoria field
       const catLower = categoria.toLowerCase();
       if (catLower.includes("loja - vendas") || catLower.includes("loja - estoque")) {
-        subcategoria = "Loja";
+        subcategoria = TransactionSubcategory.STORE;
       } else if (catLower.includes("moradia") || catLower.includes("aluguel")) {
-        subcategoria = "Casa";
+        subcategoria = TransactionSubcategory.HOME;
       }
     }
 
     // Determine status
-    let status: Transaction["status"] = "realizado";
+    let status: Transaction["status"] = TransactionStatus.COMPLETED;
     if (statusRaw) {
       const statusLower = statusRaw.toLowerCase();
       if (statusLower.includes("pendente") || statusLower.includes("pending") ||
           statusLower.includes("⏳") || statusLower.includes("não pago")) {
-        status = "pendente";
+        status = TransactionStatus.PENDING;
       } else if (statusLower.includes("pago") || statusLower.includes("paid") ||
                  statusLower.includes("✅") || statusLower.includes("realizado") ||
                  statusLower.includes("feito")) {
-        status = "realizado";
+        status = TransactionStatus.PAID;
       }
     }
 
     return {
       id: generateId(),
-      data,
-      descricao,
-      categoria,
-      subcategoria,
-      tipo,
-      valor: Math.abs(valorRaw),
-      status,
-      recorrente: false,
+      date: data,
+      description: descricao,
+      category: categoria,
+      subcategory: subcategoria,
+      type: tipo,
+      amount: Math.abs(valorRaw),
+      status: status,
+      recurring: false,
     };
   }
 

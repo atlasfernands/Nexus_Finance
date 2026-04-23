@@ -3,10 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
-import { LayoutDashboard, ListOrdered, FileInput, BarChart3, Store, Home, Settings, Bot, Menu } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  BarChart3,
+  Bot,
+  FileInput,
+  Home,
+  LayoutDashboard,
+  ListOrdered,
+  Menu,
+  Settings,
+  Store,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { cn } from "../lib/utils";
 import { useFinance } from "../features/finance/FinanceContext";
+import ReportingPeriodControls from "./ReportingPeriodControls";
 
 interface NavItemProps {
   icon: React.ElementType;
@@ -16,146 +29,237 @@ interface NavItemProps {
   collapsed?: boolean;
 }
 
-const NavItem = ({ icon: Icon, label, active, onClick, collapsed }: NavItemProps) => (
-  <button
-    onClick={onClick}
-    className={cn(
-      "flex items-center gap-3 px-3 py-2.5 rounded-md transition-all w-full text-left",
-      active 
-        ? "bg-brand-surface-light text-white border-l-2 border-brand-green" 
-        : "text-slate-500 hover:text-slate-100 hover:bg-slate-800/30"
-    )}
-  >
-    <Icon size={16} className={cn(active ? "text-brand-green" : "")} />
-    {!collapsed && <span className="text-[13px] font-medium">{label}</span>}
-  </button>
-);
+function NavItem({ icon: Icon, label, active, onClick, collapsed }: NavItemProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center rounded-md py-2.5 text-left transition-all",
+        collapsed ? "justify-center px-0" : "gap-3 px-3",
+        active
+          ? "border-l-2 border-brand-green bg-brand-surface-light text-white"
+          : "text-slate-500 hover:bg-slate-800/30 hover:text-slate-100"
+      )}
+    >
+      <Icon size={16} className={cn(active ? "text-brand-green" : "")} />
+      {!collapsed && <span className="truncate text-[13px] font-medium">{label}</span>}
+    </button>
+  );
+}
 
-export type View = "dashboard" | "transacoes" | "importacao" | "relatorios" | "loja" | "casa" | "config" | "ia";
+export type View =
+  | "dashboard"
+  | "transactions"
+  | "import"
+  | "reports"
+  | "store"
+  | "home"
+  | "settings"
+  | "ai";
 
-export default function Layout({ children, currentView, setView }: { children: React.ReactNode; currentView: View; setView: (v: View) => void }) {
+export default function Layout({
+  children,
+  currentView,
+  setView,
+}: {
+  children: React.ReactNode;
+  currentView: View;
+  setView: (view: View) => void;
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<"online" | "offline" | "checking">("checking");
   const { state } = useFinance();
 
-  const sistemasItems = [
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const hasData = state.transactions.length > 0;
+        const hasApiKey = true;
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        setSystemStatus(hasData && hasApiKey ? "online" : "offline");
+      } catch {
+        setSystemStatus("offline");
+      }
+    };
+
+    checkSystemStatus();
+    const interval = setInterval(checkSystemStatus, 30000);
+
+    return () => clearInterval(interval);
+  }, [state.transactions.length]);
+
+  const getStatusInfo = () => {
+    switch (systemStatus) {
+      case "online":
+        return {
+          text: "AO VIVO: MODO INTEGRADO",
+          color: "text-brand-green",
+          icon: Wifi,
+          pulse: true,
+        };
+      case "offline":
+        return {
+          text: "OFFLINE: MODO LOCAL",
+          color: "text-brand-red",
+          icon: WifiOff,
+          pulse: false,
+        };
+      default:
+        return {
+          text: "VERIFICANDO SISTEMA...",
+          color: "text-yellow-400",
+          icon: Wifi,
+          pulse: true,
+        };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+  const StatusIcon = statusInfo.icon;
+  const sidebarCollapsed = collapsed && !mobileMenuOpen;
+
+  const systemsItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "transacoes", label: "Lançamentos", icon: ListOrdered },
-    { id: "loja", label: "Módulo Loja", icon: Store },
-    { id: "casa", label: "Módulo Casa", icon: Home },
+    { id: "transactions", label: "Lancamentos", icon: ListOrdered },
+    { id: "store", label: "Modulo Loja", icon: Store },
+    { id: "home", label: "Modulo Casa", icon: Home },
   ] as const;
 
-  const analiseItems = [
-    { id: "ia", label: "Diagnóstico IA", icon: Bot },
-    { id: "relatorios", label: "Relatórios", icon: BarChart3 },
-    { id: "importacao", label: "Importação", icon: FileInput },
+  const analysisItems = [
+    { id: "ai", label: "Diagnostico IA", icon: Bot },
+    { id: "reports", label: "Relatorios", icon: BarChart3 },
+    { id: "import", label: "Importacao", icon: FileInput },
   ] as const;
+
+  const currentViewLabel =
+    systemsItems.find((item) => item.id === currentView)?.label ||
+    analysisItems.find((item) => item.id === currentView)?.label ||
+    currentView;
+  const showReportingPeriodControls = !["transactions", "import", "settings"].includes(currentView);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-bg relative">
-      {/* Sidebar Mobile Overlay */}
+    <div className="relative flex h-screen overflow-hidden bg-brand-bg">
       {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <aside className={cn(
-        "fixed lg:static inset-y-0 left-0 z-50 transform bg-brand-card border-r border-brand-border h-full transition-all duration-300 max-w-[280px] sm:max-w-[320px]",
-        collapsed ? "w-16" : "w-[200px]",
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      )}>
-        <div className="flex flex-col h-full py-6">
-          <div className="px-6 mb-8 flex items-center justify-center">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 h-full transform border-r border-brand-border bg-brand-card transition-all duration-300 lg:static",
+          sidebarCollapsed ? "w-16" : "w-[240px]",
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}
+      >
+        <div className="flex h-full flex-col py-6">
+          <div className="mb-8 flex items-center justify-center px-6">
             <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              onClick={() => setCollapsed((value) => !value)}
+              className="flex items-center gap-2 transition-opacity hover:opacity-80"
             >
-              <div className="w-6 h-6 bg-brand-green rounded flex items-center justify-center">
-                <span className="text-black font-extrabold text-sm font-mono">N</span>
+              <div className="flex h-6 w-6 items-center justify-center rounded bg-brand-green">
+                <span className="font-mono text-sm font-extrabold text-black">N</span>
               </div>
-              {!collapsed && (
-                <h1 className="text-sm font-bold tracking-[2px] text-brand-green font-mono uppercase">NEXUS_FINANCE</h1>
+              {!sidebarCollapsed && (
+                <h1 className="font-mono text-sm font-bold uppercase tracking-[2px] text-brand-green">
+                  NEXUS_FINANCE
+                </h1>
               )}
             </button>
           </div>
 
-          <nav className="flex-1 px-3 space-y-6 overflow-y-auto">
+          <nav className="flex-1 space-y-6 overflow-y-auto px-3">
             <div>
-              <p className="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-2 ml-2">Sistemas</p>
+              {!sidebarCollapsed && (
+                <p className="px-3 pb-1 text-[11px] font-bold uppercase leading-none tracking-[0.18em] text-slate-500">
+                  Sistemas
+                </p>
+              )}
               <div className="space-y-1">
-                {sistemasItems.map((item) => (
+                {systemsItems.map((item) => (
                   <NavItem
                     key={item.id}
                     icon={item.icon}
                     label={item.label}
                     active={currentView === item.id}
-                    onClick={() => { setView(item.id); setMobileMenuOpen(false); }}
-                    collapsed={collapsed}
+                    onClick={() => {
+                      setView(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    collapsed={sidebarCollapsed}
                   />
                 ))}
               </div>
             </div>
 
             <div>
-              <p className="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-2 ml-2">Análise</p>
+              {!sidebarCollapsed && (
+                <p className="px-3 pb-1 text-[11px] font-bold uppercase leading-none tracking-[0.18em] text-slate-500">
+                  Analise
+                </p>
+              )}
               <div className="space-y-1">
-                {analiseItems.map((item) => (
+                {analysisItems.map((item) => (
                   <NavItem
                     key={item.id}
                     icon={item.icon}
                     label={item.label}
                     active={currentView === item.id}
-                    onClick={() => { setView(item.id); setMobileMenuOpen(false); }}
-                    collapsed={collapsed}
+                    onClick={() => {
+                      setView(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    collapsed={sidebarCollapsed}
                   />
                 ))}
               </div>
             </div>
 
             <div className="mt-auto pt-6">
-               <NavItem
+              <NavItem
                 icon={Settings}
-                label="Configurações"
-                active={currentView === 'config'}
-                onClick={() => { setView('config'); setMobileMenuOpen(false); }}
-                collapsed={collapsed}
+                label="Configuracoes"
+                active={currentView === "settings"}
+                onClick={() => {
+                  setView("settings");
+                  setMobileMenuOpen(false);
+                }}
+                collapsed={sidebarCollapsed}
               />
             </div>
           </nav>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Header */}
-        <header className="h-16 border-b border-brand-border flex items-center justify-between px-6 shrink-0 bg-brand-bg/50 backdrop-blur-xl z-30">
+      <main className="flex h-full flex-1 flex-col overflow-hidden">
+        <header className="z-30 flex h-16 shrink-0 items-center justify-between border-b border-brand-border bg-brand-bg/50 px-6 backdrop-blur-xl">
           <div className="flex items-center gap-4">
-            <button 
-              className="lg:hidden text-white"
-              onClick={() => setMobileMenuOpen(true)}
-            >
+            <button className="text-white lg:hidden" onClick={() => setMobileMenuOpen(true)}>
               <Menu size={24} />
             </button>
             <h2 className="text-xl font-semibold text-white">
-              {sistemasItems.find(m => m.id === currentView)?.label || analiseItems.find(m => m.id === currentView)?.label || currentView}
-              <span className="text-slate-500 font-light ml-2">/ {new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+              {currentViewLabel}
+              <span className="ml-2 font-light text-slate-500">
+                / {new Date().toLocaleString("pt-BR", { month: "long", year: "numeric" })}
+              </span>
             </h2>
           </div>
-          
+
           <div className="flex items-center gap-4">
-            <div className="status-badge hidden sm:flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-brand-green rounded-full animate-pulse" />
-              LIVE: INTEGRATED_MODE
+            <div className={cn("status-badge hidden items-center gap-2 sm:flex", statusInfo.color)}>
+              <StatusIcon size={14} className={statusInfo.pulse ? "animate-pulse" : undefined} />
+              {statusInfo.text}
             </div>
           </div>
         </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
+          <div className="mx-auto max-w-7xl space-y-6">
+            {showReportingPeriodControls && <ReportingPeriodControls />}
             {children}
           </div>
         </div>

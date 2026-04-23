@@ -4,104 +4,208 @@
  */
 
 import { useFinance } from "./FinanceContext";
-import { Transaction } from "../../types";
-import { formatDate } from "../../lib/utils";
+import {
+  ReportingPeriod,
+  Transaction,
+  TransactionStatus,
+  TransactionSubcategory,
+  TransactionType,
+} from "../../types";
+import { parseDateString } from "../../lib/utils";
+
+function formatReportingPeriodLabel(period: ReportingPeriod): string {
+  if (period.granularity === "year") {
+    return String(period.year);
+  }
+
+  return new Date(period.year, period.month, 1).toLocaleString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getPreviousReportingPeriod(period: ReportingPeriod): ReportingPeriod {
+  if (period.granularity === "year") {
+    return {
+      ...period,
+      year: period.year - 1,
+    };
+  }
+
+  const previousDate = new Date(period.year, period.month - 1, 1);
+
+  return {
+    ...period,
+    month: previousDate.getMonth(),
+    year: previousDate.getFullYear(),
+  };
+}
+
+function isTransactionInReportingPeriod(date: Date, period: ReportingPeriod): boolean {
+  if (period.granularity === "year") {
+    return date.getFullYear() === period.year;
+  }
+
+  return date.getMonth() === period.month && date.getFullYear() === period.year;
+}
 
 export function useFinanceStats() {
   const { state } = useFinance();
-  const { transactions } = state;
+  const { reportingPeriod, transactions: allTransactions } = state;
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  const previousReportingPeriod = getPreviousReportingPeriod(reportingPeriod);
+  const currentPeriodLabel = formatReportingPeriodLabel(reportingPeriod);
+  const previousPeriodLabel = formatReportingPeriodLabel(previousReportingPeriod);
 
-  const currentMonthLabel = new Date().toLocaleString("pt-BR", { month: "long", year: "numeric" });
+  const transactions = allTransactions.filter((transaction) => {
+    const parsedDate = parseDateString(transaction.date);
+    return parsedDate ? isTransactionInReportingPeriod(parsedDate, reportingPeriod) : false;
+  });
 
-  const isCurrentMonth = (t: Transaction) => {
-    const d = formatDate(t.data);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  };
+  const currentPeriodTransactions = transactions.filter(
+    (transaction) => transaction.status !== TransactionStatus.CANCELLED
+  );
+  const previousPeriodTransactions = allTransactions.filter((transaction) => {
+    const parsedDate = parseDateString(transaction.date);
 
-  const isLastMonth = (t: Transaction) => {
-    const d = formatDate(t.data);
-    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    const lastYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    return d.getMonth() === lastMonth && d.getFullYear() === lastYear;
-  };
+    return (
+      parsedDate &&
+      isTransactionInReportingPeriod(parsedDate, previousReportingPeriod) &&
+      transaction.status !== TransactionStatus.CANCELLED
+    );
+  });
 
-  const currentMonthTransactions = transactions.filter(t => isCurrentMonth(t) && t.status !== "cancelado");
+  const flowData =
+    reportingPeriod.granularity === "year"
+      ? Array.from({ length: 12 }, (_, month) => ({
+          name: new Date(reportingPeriod.year, month, 1).toLocaleString("pt-BR", { month: "short" }),
+          entradas: 0,
+          saidas: 0,
+        }))
+      : Array.from({ length: 5 }, (_, index) => ({
+          name: `Sem ${index + 1}`,
+          entradas: 0,
+          saidas: 0,
+        }));
 
-  const getWeekIndex = (date: Date) => Math.min(4, Math.floor((date.getDate() - 1) / 7));
+  currentPeriodTransactions.forEach((transaction) => {
+    const parsedDate = parseDateString(transaction.date);
+    if (!parsedDate) {
+      return;
+    }
 
-  const monthlyFlow = Array.from({ length: 5 }, (_, index) => ({
-    name: `Sem ${index + 1}`,
-    entradas: 0,
-    saidas: 0,
-  }));
+    const bucketIndex =
+      reportingPeriod.granularity === "year"
+        ? parsedDate.getMonth()
+        : Math.min(4, Math.floor((parsedDate.getDate() - 1) / 7));
 
-  currentMonthTransactions.forEach(t => {
-    const d = formatDate(t.data);
-    const idx = getWeekIndex(d);
-    if (t.tipo === "entrada") {
-      monthlyFlow[idx].entradas += t.valor;
+    if (transaction.type === TransactionType.INCOME) {
+      flowData[bucketIndex].entradas += transaction.amount;
     } else {
-      monthlyFlow[idx].saidas += t.valor;
+      flowData[bucketIndex].saidas += transaction.amount;
     }
   });
 
-  // Saldo Realizado = realizado + pago
-  const saldoRealizado = transactions
-    .filter(t => t.status === "realizado" || t.status === "pago")
-    .reduce((acc, t) => acc + (t.tipo === "entrada" ? t.valor : -t.valor), 0);
+  const saldoRealizado = currentPeriodTransactions
+    .filter(
+      (transaction) =>
+        transaction.status === TransactionStatus.COMPLETED || transaction.status === TransactionStatus.PAID
+    )
+    .reduce(
+      (sum, transaction) =>
+        sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+      0
+    );
 
-  // Saldo Projetado = todos (exceto cancelados)
-  const saldoProjetado = transactions
-    .filter(t => t.status !== "cancelado")
-    .reduce((acc, t) => acc + (t.tipo === "entrada" ? t.valor : -t.valor), 0);
+  const saldoProjetado = currentPeriodTransactions.reduce(
+    (sum, transaction) =>
+      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+    0
+  );
 
-  const entradasMes = currentMonthTransactions
-    .filter(t => t.tipo === "entrada")
-    .reduce((acc, t) => acc + t.valor, 0);
+  const entradasMes = currentPeriodTransactions
+    .filter((transaction) => transaction.type === TransactionType.INCOME)
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const saidasMes = currentMonthTransactions
-    .filter(t => t.tipo === "saída")
-    .reduce((acc, t) => acc + t.valor, 0);
+  const saidasMes = currentPeriodTransactions
+    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const entradasMesAnterior = transactions
-    .filter(t => isLastMonth(t) && t.tipo === "entrada" && t.status !== "cancelado")
-    .reduce((acc, t) => acc + t.valor, 0);
+  const entradasPeriodoAnterior = previousPeriodTransactions
+    .filter((transaction) => transaction.type === TransactionType.INCOME)
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const saidasMesAnterior = transactions
-    .filter(t => isLastMonth(t) && t.tipo === "saída" && t.status !== "cancelado")
-    .reduce((acc, t) => acc + t.valor, 0);
+  const saidasPeriodoAnterior = previousPeriodTransactions
+    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const deltaEntradas = entradasMesAnterior !== 0 ? ((entradasMes - entradasMesAnterior) / entradasMesAnterior) * 100 : 0;
-  const deltaSaidas = saidasMesAnterior !== 0 ? ((saidasMes - saidasMesAnterior) / saidasMesAnterior) * 100 : 0;
+  const deltaEntradas =
+    entradasPeriodoAnterior !== 0
+      ? ((entradasMes - entradasPeriodoAnterior) / entradasPeriodoAnterior) * 100
+      : 0;
+  const deltaSaidas =
+    saidasPeriodoAnterior !== 0
+      ? ((saidasMes - saidasPeriodoAnterior) / saidasPeriodoAnterior) * 100
+      : 0;
+
+  const saldoMesAtual = currentPeriodTransactions.reduce(
+    (sum, transaction) =>
+      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+    0
+  );
+  const saldoMesAnterior = previousPeriodTransactions.reduce(
+    (sum, transaction) =>
+      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+    0
+  );
+
+  const deltaSaldo =
+    saldoMesAnterior !== 0
+      ? ((saldoMesAtual - saldoMesAnterior) / Math.abs(saldoMesAnterior)) * 100
+      : saldoMesAtual !== 0
+        ? 100
+        : 0;
 
   const monthlyRiskRatio = entradasMes > 0 ? Math.min((saidasMes / entradasMes) * 100, 100) : 100;
   const filledRiskSegments = Math.round(monthlyRiskRatio / 10);
-  const riskStatus = monthlyRiskRatio < 60 ? "Baixo" : monthlyRiskRatio < 80 ? "Médio" : "Alto";
+  const riskStatus = monthlyRiskRatio < 60 ? "Baixo" : monthlyRiskRatio < 80 ? "Medio" : "Alto";
 
-  // Store Meta
-  const saldoLoja = transactions
-    .filter(t => t.subcategoria === "Loja" && (t.status === "realizado" || t.status === "pago"))
-    .reduce((acc, t) => acc + (t.tipo === "entrada" ? t.valor : -t.valor), 0);
-    
-  const metaAtingidaPercent = Math.min((saldoLoja / state.profile.meta) * 100, 100);
+  const saldoLoja = currentPeriodTransactions
+    .filter(
+      (transaction) =>
+        transaction.subcategory === TransactionSubcategory.STORE &&
+        (transaction.status === TransactionStatus.COMPLETED ||
+          transaction.status === TransactionStatus.PAID)
+    )
+    .reduce(
+      (sum, transaction) =>
+        sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+      0
+    );
+
+  const metaAtingidaPercent =
+    state.profile.goal > 0 ? Math.min((saldoLoja / state.profile.goal) * 100, 100) : 0;
 
   return {
-    currentMonthLabel,
+    selectedPeriod: reportingPeriod,
+    currentPeriodLabel,
+    previousPeriodLabel,
     saldoRealizado,
     saldoProjetado,
     entradasMes,
     saidasMes,
+    saldoMesAtual,
+    saldoMesAnterior,
     deltaEntradas,
     deltaSaidas,
-    monthlyFlow,
+    deltaSaldo,
+    monthlyFlow: flowData,
     monthlyRiskRatio,
     filledRiskSegments,
     riskStatus,
     saldoLoja,
     metaAtingidaPercent,
-    transactions
+    transactions,
+    allTransactions,
   };
 }

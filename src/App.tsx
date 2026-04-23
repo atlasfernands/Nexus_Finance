@@ -18,24 +18,23 @@ import Settings from "./views/Settings";
 function AppContent() {
   const [currentView, setView] = useState<View>("dashboard");
 
-  const renderView = () => {
-    switch (currentView) {
-      case "dashboard": return <Dashboard />;
-      case "transacoes": return <Transactions />;
-      case "importacao": return <ImportTransactions />;
-      case "relatorios": return <Reports />;
-      case "loja": return <StoreModule />;
-      case "casa": return <HomeModule />;
-      case "ia": return <AIInsights />;
-      case "config": return <Settings />;
-      default: return <Dashboard />;
-    }
+  const viewComponents = {
+    dashboard: Dashboard,
+    transactions: Transactions,
+    import: ImportTransactions,
+    reports: Reports,
+    store: StoreModule,
+    home: HomeModule,
+    ai: AIInsights,
+    settings: Settings,
   };
+
+  const ViewComponent = viewComponents[currentView] || Dashboard;
 
   return (
     <Layout currentView={currentView} setView={setView}>
       <Suspense fallback={<div className="flex h-64 items-center justify-center text-brand-green animate-pulse">Carregando Nexus Engine...</div>}>
-        {renderView()}
+        <ViewComponent />
       </Suspense>
     </Layout>
   );

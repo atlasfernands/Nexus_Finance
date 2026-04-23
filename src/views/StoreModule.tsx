@@ -4,22 +4,40 @@
  */
 
 import React from "react";
-import { Store, TrendingUp, Package, Percent, Target, Plus, ArrowUpRight } from "lucide-react";
+import { Package, Store, Target, TrendingUp } from "lucide-react";
+import { motion } from "motion/react";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
 import { formatCurrency } from "../lib/utils";
-import { motion } from "motion/react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export default function StoreModule() {
   const { state } = useFinance();
-  const { transactions } = useFinanceStats();
+  const { currentPeriodLabel, transactions } = useFinanceStats();
 
-  const storeTransactions = transactions.filter(t => t.subcategoria === "Loja");
-  const sales = storeTransactions.filter(t => t.tipo === "entrada" && (t.status === "pago" || t.status === "realizado")).reduce((acc, t) => acc + t.valor, 0);
-  const costs = storeTransactions.filter(t => t.tipo === "saída" && (t.status === "pago" || t.status === "realizado")).reduce((acc, t) => acc + t.valor, 0);
+  const storeTransactions = transactions.filter(
+    (transaction) => transaction.subcategory === TransactionSubcategory.STORE
+  );
+  const sales = storeTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === TransactionType.INCOME &&
+        (transaction.status === TransactionStatus.PAID ||
+          transaction.status === TransactionStatus.COMPLETED)
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const costs = storeTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === TransactionType.EXPENSE &&
+        (transaction.status === TransactionStatus.PAID ||
+          transaction.status === TransactionStatus.COMPLETED)
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
   const marginRaw = sales - costs;
   const marginPercent = sales > 0 ? (marginRaw / sales) * 100 : 0;
+  const goalProgress = state.profile.goal > 0 ? Math.min((sales / state.profile.goal) * 100, 100) : 0;
 
   const chartData = [
     { name: "Vendas", value: sales, color: "#00FF9D" },
@@ -28,93 +46,105 @@ export default function StoreModule() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-brand-green/10 p-6 rounded-2xl border border-brand-green/20">
+      <div className="flex items-center justify-between rounded-2xl border border-brand-green/20 bg-brand-green/10 p-6">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-brand-green text-black rounded-xl">
+          <div className="rounded-xl bg-brand-green p-3 text-black">
             <Store size={32} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-tight">{state.profile.loja}</h2>
-            <p className="text-brand-green text-xs font-bold uppercase tracking-widest">Painel de Controle MEI</p>
+            <h2 className="text-2xl font-bold tracking-tight text-white">{state.profile.store}</h2>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-green">Painel de Controle MEI</p>
+            <p className="mt-1 text-xs text-slate-400">Periodo ativo: {currentPeriodLabel}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mb-1">Margem de Lucro</p>
-          <p className="text-3xl font-mono font-bold text-brand-green">{marginPercent.toFixed(1)}%</p>
+          <p className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-500">Margem de Lucro</p>
+          <p className="text-3xl font-bold text-brand-green">{marginPercent.toFixed(1)}%</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="trading-card">
-          <TrendingUp className="text-brand-green mb-4" />
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Vendas Totais</p>
-          <p className="text-2xl font-mono font-bold text-white">{formatCurrency(sales)}</p>
+          <TrendingUp className="mb-4 text-brand-green" />
+          <p className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-500">Vendas Totais</p>
+          <p className="text-2xl font-bold text-white">{formatCurrency(sales)}</p>
         </div>
         <div className="trading-card">
-          <Package className="text-blue-400 mb-4" />
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Custos Operacionais</p>
-          <p className="text-2xl font-mono font-bold text-white">{formatCurrency(costs)}</p>
+          <Package className="mb-4 text-blue-400" />
+          <p className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-500">Custos Operacionais</p>
+          <p className="text-2xl font-bold text-white">{formatCurrency(costs)}</p>
         </div>
         <div className="trading-card">
-          <Target className="text-brand-yellow mb-4" />
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Lucro Líquido</p>
-          <p className="text-2xl font-mono font-bold text-brand-green">{formatCurrency(marginRaw)}</p>
+          <Target className="mb-4 text-brand-yellow" />
+          <p className="mb-1 text-xs font-bold uppercase tracking-widest text-slate-500">Lucro Liquido</p>
+          <p className="text-2xl font-bold text-brand-green">{formatCurrency(marginRaw)}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="trading-card h-[350px]">
-          <h3 className="text-white font-bold mb-6 flex items-center gap-2">Desempenho Comercial</h3>
-          <ResponsiveContainer width="100%" height="80%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
-              <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(val) => `R$ ${val/1000}k`} />
-              <Tooltip 
-                cursor={{ fill: 'transparent' }}
-                contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="trading-card min-w-0">
+          <h3 className="mb-6 flex items-center gap-2 font-bold text-white">Desempenho Comercial</h3>
+          <div className="h-[280px] min-h-[220px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `R$ ${value / 1000}k`}
+                />
+                <Tooltip
+                  cursor={{ fill: "transparent" }}
+                  contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         <div className="trading-card">
-          <h3 className="text-white font-bold mb-4">Meta Mensal</h3>
+          <h3 className="mb-4 font-bold text-white">Meta do Periodo</h3>
           <div className="space-y-6">
-            <div className="bg-slate-900 p-4 rounded-xl border border-brand-border flex justify-between items-center">
+            <div className="flex items-center justify-between rounded-xl border border-brand-border bg-slate-900 p-4">
               <div>
-                <p className="text-xs text-slate-500 font-bold uppercase">Realizado</p>
-                <p className="text-xl font-mono text-white">{formatCurrency(sales)}</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Realizado</p>
+                <p className="text-xl text-white">{formatCurrency(sales)}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-slate-500 font-bold uppercase">Objetivo</p>
-                <p className="text-xl font-mono text-brand-green">{formatCurrency(state.profile.meta)}</p>
+                <p className="text-xs font-bold uppercase text-slate-500">Objetivo</p>
+                <p className="text-xl text-brand-green">{formatCurrency(state.profile.goal)}</p>
               </div>
             </div>
-            
+
             <div className="relative pt-8">
-               <div className="h-4 bg-slate-900 rounded-full border border-brand-border overflow-hidden">
-                 <motion.div 
+              <div className="h-4 overflow-hidden rounded-full border border-brand-border bg-slate-900">
+                <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${Math.min((sales/state.profile.meta)*100, 100)}%` }}
+                  animate={{ width: `${goalProgress}%` }}
                   className="h-full bg-brand-green shadow-[0_0_15px_rgba(0,255,157,0.3)] transition-all"
-                 />
-               </div>
-               <div 
-                 style={{ left: `${Math.min((sales/state.profile.meta)*100, 100)}%` }}
-                 className="absolute top-0 -translate-x-1/2 flex flex-col items-center"
-               >
-                 <div className="bg-brand-green text-black text-[10px] font-bold px-2 py-0.5 rounded shadow-lg">VOCÊ</div>
-                 <div className="w-0.5 h-4 bg-brand-green" />
-               </div>
+                />
+              </div>
+              <div
+                style={{ left: `${goalProgress}%` }}
+                className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
+              >
+                <div className="rounded bg-brand-green px-2 py-0.5 text-[10px] font-bold text-black shadow-lg">
+                  VOCE
+                </div>
+                <div className="h-4 w-0.5 bg-brand-green" />
+              </div>
             </div>
             <p className="text-center text-xs text-slate-500">
-              Faltam <span className="text-white font-mono">{formatCurrency(Math.max(state.profile.meta - sales, 0))}</span> para atingir o objetivo
+              Faltam <span className="text-white">{formatCurrency(Math.max(state.profile.goal - sales, 0))}</span>{" "}
+              para atingir o objetivo
             </p>
           </div>
         </div>
