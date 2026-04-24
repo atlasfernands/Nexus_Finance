@@ -4,55 +4,159 @@
  */
 
 import React from "react";
-import { BarChart3, LineChart as LineIcon, Download, FileJson, FileSpreadsheet } from "lucide-react";
+import { BarChart3, Download, FileJson, FileSpreadsheet, LineChart as LineIcon } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
-import { formatCurrency, formatDate } from "../lib/utils";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
+import { parseDateString } from "../lib/utils";
+import { TransactionSubcategory, TransactionType } from "../types";
 
 export default function Reports() {
   const { state } = useFinance();
-  const { transactions } = useFinanceStats();
+  const { currentPeriodLabel, selectedPeriod, transactions } = useFinanceStats();
 
-  const generateMonthlyData = () => {
-    const months = Array.from({ length: 6 }, (_, offset) => {
-      const date = new Date();
-      date.setMonth(date.getMonth() - (5 - offset));
-      return `${date.toLocaleString("pt-BR", { month: "short" })}`;
-    });
+  const generateTrendData = () => {
+    if (selectedPeriod.granularity === "year") {
+      return Array.from({ length: 12 }, (_, month) => {
+        const periodDate = new Date(selectedPeriod.year, month, 1);
 
-    return months.map((label, idx) => {
-      const targetDate = new Date();
-      targetDate.setMonth(targetDate.getMonth() - (5 - idx));
-      const month = targetDate.getMonth();
-      const year = targetDate.getFullYear();
+        const entradas = state.transactions
+          .filter((transaction) => {
+            const parsedDate = parseDateString(transaction.date);
+
+            return (
+              parsedDate &&
+              parsedDate.getMonth() === month &&
+              parsedDate.getFullYear() === selectedPeriod.year &&
+              transaction.type === TransactionType.INCOME
+            );
+          })
+          .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+        const saidas = state.transactions
+          .filter((transaction) => {
+            const parsedDate = parseDateString(transaction.date);
+
+            return (
+              parsedDate &&
+              parsedDate.getMonth() === month &&
+              parsedDate.getFullYear() === selectedPeriod.year &&
+              transaction.type === TransactionType.EXPENSE
+            );
+          })
+          .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+        return {
+          name: periodDate.toLocaleString("pt-BR", { month: "short" }),
+          entradas,
+          saidas,
+        };
+      });
+    }
+
+    const referenceDate = new Date(selectedPeriod.year, selectedPeriod.month, 1);
+
+    return Array.from({ length: 6 }, (_, offset) => {
+      const periodDate = new Date(referenceDate);
+      periodDate.setMonth(referenceDate.getMonth() - (5 - offset));
+      const month = periodDate.getMonth();
+      const year = periodDate.getFullYear();
 
       const entradas = state.transactions
-        .filter(t => {
-          const d = formatDate(t.data);
-          return d.getMonth() === month && d.getFullYear() === year && t.tipo === "entrada";
+        .filter((transaction) => {
+          const parsedDate = parseDateString(transaction.date);
+
+          return (
+            parsedDate &&
+            parsedDate.getMonth() === month &&
+            parsedDate.getFullYear() === year &&
+            transaction.type === TransactionType.INCOME
+          );
         })
-        .reduce((acc, t) => acc + t.valor, 0);
+        .reduce((sum, transaction) => sum + transaction.amount, 0);
 
       const saidas = state.transactions
-        .filter(t => {
-          const d = formatDate(t.data);
-          return d.getMonth() === month && d.getFullYear() === year && t.tipo === "saída";
-        })
-        .reduce((acc, t) => acc + t.valor, 0);
+        .filter((transaction) => {
+          const parsedDate = parseDateString(transaction.date);
 
-      return { name: label, entradas, saidas };
+          return (
+            parsedDate &&
+            parsedDate.getMonth() === month &&
+            parsedDate.getFullYear() === year &&
+            transaction.type === TransactionType.EXPENSE
+          );
+        })
+        .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+      return {
+        name: periodDate.toLocaleString("pt-BR", { month: "short", year: "2-digit" }),
+        entradas,
+        saidas,
+      };
     });
   };
 
-  const monthlyData = generateMonthlyData();
+  const trendData = generateTrendData();
+  const comparisonData = [
+    {
+      name: "Casa",
+      entradas: transactions
+        .filter(
+          (transaction) =>
+            transaction.subcategory === TransactionSubcategory.HOME &&
+            transaction.type === TransactionType.INCOME
+        )
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+      saidas: transactions
+        .filter(
+          (transaction) =>
+            transaction.subcategory === TransactionSubcategory.HOME &&
+            transaction.type === TransactionType.EXPENSE
+        )
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    },
+    {
+      name: "Loja",
+      entradas: transactions
+        .filter(
+          (transaction) =>
+            transaction.subcategory === TransactionSubcategory.STORE &&
+            transaction.type === TransactionType.INCOME
+        )
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+      saidas: transactions
+        .filter(
+          (transaction) =>
+            transaction.subcategory === TransactionSubcategory.STORE &&
+            transaction.type === TransactionType.EXPENSE
+        )
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    },
+  ];
 
   const exportCSV = () => {
-    const headers = ["Descrição", "Data", "Valor", "Tipo", "Subcategoria", "Categoria", "Status"];
-    const rows = state.transactions.map(t => [
-      t.descricao, t.data, t.valor, t.tipo, t.subcategoria, t.categoria, t.status
+    const headers = ["Descricao", "Data", "Valor", "Tipo", "Subcategoria", "Categoria", "Status"];
+    const rows = transactions.map((transaction) => [
+      transaction.description,
+      transaction.date,
+      transaction.amount,
+      transaction.type,
+      transaction.subcategory,
+      transaction.category,
+      transaction.status,
     ]);
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const csvContent = `data:text/csv;charset=utf-8,${[headers.join(","), ...rows.map((row) => row.join(","))].join("\n")}`;
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
     link.setAttribute("download", "nexus_transactions.csv");
@@ -63,84 +167,120 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="trading-card h-[400px]">
-          <h3 className="text-white font-bold mb-6 flex items-center gap-2"><LineIcon size={18} className="text-brand-green" /> Evolução de Saldo</h3>
-          <ResponsiveContainer width="100%" height="80%">
-            <LineChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
-              <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(val) => `R$ ${val/1000}k`} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
-              />
-              <Legend verticalAlign="top" height={36}/>
-              <Line type="monotone" dataKey="entradas" stroke="#00FF9D" strokeWidth={3} dot={{ fill: '#00FF9D', strokeWidth: 2 }} activeDot={{ r: 8 }} />
-              <Line type="monotone" dataKey="saidas" stroke="#FF4D4D" strokeWidth={3} dot={{ fill: '#FF4D4D', strokeWidth: 2 }} />
-            </LineChart>
-          </ResponsiveContainer>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="trading-card min-w-0">
+          <h3 className="mb-6 flex items-center gap-2 font-bold text-white">
+            <LineIcon size={18} className="text-brand-green" />
+            {selectedPeriod.granularity === "year" ? "Evolucao Mensal do Ano" : "Evolucao ate o Periodo"}
+          </h3>
+          <p className="-mt-3 mb-5 text-xs text-slate-500">{currentPeriodLabel}</p>
+          <div className="h-[300px] min-h-[240px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis
+                  stroke="#64748b"
+                  fontSize={11}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `R$ ${value / 1000}k`}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
+                />
+                <Legend verticalAlign="top" height={36} />
+                <Line
+                  type="monotone"
+                  dataKey="entradas"
+                  stroke="#00FF9D"
+                  strokeWidth={3}
+                  dot={{ fill: "#00FF9D", strokeWidth: 2 }}
+                  activeDot={{ r: 8 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="saidas"
+                  stroke="#FF4D4D"
+                  strokeWidth={3}
+                  dot={{ fill: "#FF4D4D", strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="trading-card h-[400px]">
-          <h3 className="text-white font-bold mb-6 flex items-center gap-2"><BarChart3 size={18} className="text-blue-400" /> Comparativo Casa vs Loja</h3>
-          <ResponsiveContainer width="100%" height="80%">
-            <BarChart data={[
-              { name: "Casa", entradas: transactions.filter(t => t.subcategoria === "Casa" && t.tipo === "entrada").reduce((acc, t) => acc + t.valor, 0), 
-                      saidas: transactions.filter(t => t.subcategoria === "Casa" && t.tipo === "saída").reduce((acc, t) => acc + t.valor, 0) },
-              { name: "Loja", entradas: transactions.filter(t => t.subcategoria === "Loja" && t.tipo === "entrada").reduce((acc, t) => acc + t.valor, 0), 
-                      saidas: transactions.filter(t => t.subcategoria === "Loja" && t.tipo === "saída").reduce((acc, t) => acc + t.valor, 0) }
-            ]}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
-              <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
-              <YAxis stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
-              />
-              <Bar dataKey="entradas" fill="#00FF9D" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saidas" fill="#FF4D4D" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="trading-card min-w-0">
+          <h3 className="mb-6 flex items-center gap-2 font-bold text-white">
+            <BarChart3 size={18} className="text-blue-400" /> Comparativo Casa vs Loja
+          </h3>
+          <p className="-mt-3 mb-5 text-xs text-slate-500">{currentPeriodLabel}</p>
+          <div className="h-[300px] min-h-[240px] w-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
+              <BarChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#22252B" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={11} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#15171C", border: "1px solid #22252B", borderRadius: "8px" }}
+                />
+                <Bar dataKey="entradas" fill="#00FF9D" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saidas" fill="#FF4D4D" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
       <div className="trading-card">
-        <h3 className="text-white font-bold mb-6">Central de Exportação</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button onClick={exportCSV} className="p-4 bg-slate-900 border border-brand-border rounded-xl flex items-center gap-4 hover:bg-slate-800 transition-all hover:border-brand-green/50 group">
-            <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500 group-hover:scale-110 transition-transform">
+        <h3 className="mb-6 font-bold text-white">Central de Exportacao</h3>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <button
+            onClick={exportCSV}
+            className="group flex items-center gap-4 rounded-xl border border-brand-border bg-slate-900 p-4 transition-all hover:border-brand-green/50 hover:bg-slate-800"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/10 text-green-500 transition-transform group-hover:scale-110">
               <FileSpreadsheet size={24} />
             </div>
             <div className="text-left">
               <p className="text-sm font-bold text-white">Exportar CSV</p>
-              <p className="text-[10px] text-slate-500 uppercase">Para Excel / Planilhas</p>
+              <p className="text-[10px] uppercase text-slate-500">Periodo selecionado</p>
             </div>
           </button>
 
-          <button onClick={() => alert("Função de PDF requer biblioteca externa adicional. Considere usar o print do navegador (Ctrl+P).")} className="p-4 bg-slate-900 border border-brand-border rounded-xl flex items-center gap-4 hover:bg-slate-800 transition-all hover:border-brand-red/50 group">
-            <div className="w-12 h-12 bg-red-500/10 rounded-lg flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform">
+          <button
+            onClick={() =>
+              alert("Funcao de PDF requer biblioteca externa adicional. Considere usar o print do navegador (Ctrl+P).")
+            }
+            className="group flex items-center gap-4 rounded-xl border border-brand-border bg-slate-900 p-4 transition-all hover:border-brand-red/50 hover:bg-slate-800"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-500/10 text-red-500 transition-transform group-hover:scale-110">
               <Download size={24} />
             </div>
             <div className="text-left">
-              <p className="text-sm font-bold text-white">Relatório PDF</p>
-              <p className="text-[10px] text-slate-500 uppercase">Visão para Impressão</p>
+              <p className="text-sm font-bold text-white">Relatorio PDF</p>
+              <p className="text-[10px] uppercase text-slate-500">Visao para Impressao</p>
             </div>
           </button>
 
-          <button onClick={() => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.transactions));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href",     dataStr);
-            downloadAnchorNode.setAttribute("download", "transactions_backup.json");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-          }} className="p-4 bg-slate-900 border border-brand-border rounded-xl flex items-center gap-4 hover:bg-slate-800 transition-all hover:border-blue-500/50 group">
-            <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform">
+          <button
+            onClick={() => {
+              const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(transactions))}`;
+              const downloadAnchorNode = document.createElement("a");
+              downloadAnchorNode.setAttribute("href", dataStr);
+              downloadAnchorNode.setAttribute("download", "transactions_backup.json");
+              document.body.appendChild(downloadAnchorNode);
+              downloadAnchorNode.click();
+              downloadAnchorNode.remove();
+            }}
+            className="group flex items-center gap-4 rounded-xl border border-brand-border bg-slate-900 p-4 transition-all hover:border-blue-500/50 hover:bg-slate-800"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500 transition-transform group-hover:scale-110">
               <FileJson size={24} />
             </div>
             <div className="text-left">
               <p className="text-sm font-bold text-white">JSON Data</p>
-              <p className="text-[10px] text-slate-500 uppercase">Backup Técnico</p>
+              <p className="text-[10px] uppercase text-slate-500">Backup Tecnico</p>
             </div>
           </button>
         </div>
