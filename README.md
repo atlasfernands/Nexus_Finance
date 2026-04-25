@@ -54,6 +54,13 @@ VITE_GEMINI_API_KEY=
 
 O arquivo `vercel.json` ja foi incluido para fallback de SPA.
 
+## Vercel Analytics
+
+- O projeto ja esta preparado com `@vercel/analytics`.
+- Em apps `React + Vite`, o componente foi ligado em `src/main.tsx`.
+- O Analytics nao coleta dados em desenvolvimento local; os dados aparecem apos deploy na Vercel.
+- Como este painel usa navegacao interna em SPA, o Web Analytics mede visitas e carregamentos da aplicacao. Se voce quiser medir mudancas entre modulos internos como eventos separados, o proximo passo e instrumentar eventos customizados ou migrar as views para rotas reais.
+
 ## Auth atual
 
 - Login e cadastro por email/senha usando Supabase Auth
