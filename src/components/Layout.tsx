@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from "react";
 import {
   BarChart3,
+  Bell,
   Bot,
   FileInput,
   Home,
@@ -16,9 +17,13 @@ import {
   Store,
   Wifi,
   WifiOff,
+  X,
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useAuth } from "../features/auth/AuthContext";
 import { useFinance } from "../features/finance/FinanceContext";
+import { useFinanceStats } from "../features/finance/useFinanceStats";
+import { formatCurrency, parseDateString } from "../lib/utils";
 import ReportingPeriodControls from "./ReportingPeriodControls";
 
 interface NavItemProps {
@@ -69,7 +74,10 @@ export default function Layout({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<"online" | "offline" | "checking">("checking");
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { state } = useFinance();
+  const { logout, session } = useAuth();
+  const { upcomingPendingExpenses } = useFinanceStats();
 
   useEffect(() => {
     const checkSystemStatus = async () => {
@@ -119,6 +127,75 @@ export default function Layout({
   const statusInfo = getStatusInfo();
   const StatusIcon = statusInfo.icon;
   const sidebarCollapsed = collapsed && !mobileMenuOpen;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const notifications = upcomingPendingExpenses.map((transaction) => {
+    const parsedDate = parseDateString(transaction.date);
+    const dueDate = parsedDate ? new Date(parsedDate) : null;
+
+    if (dueDate) {
+      dueDate.setHours(0, 0, 0, 0);
+    }
+
+    const daysUntil = dueDate
+      ? Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    const statusLabel =
+      daysUntil === null
+        ? "Data invalida"
+        : daysUntil < 0
+          ? `Venceu ha ${Math.abs(daysUntil)} dia(s)`
+          : daysUntil === 0
+            ? "Vence hoje"
+            : `Faltam ${daysUntil} dia(s)`;
+
+    const statusTone =
+      daysUntil === null
+        ? "text-slate-400"
+        : daysUntil < 0
+          ? "text-brand-red"
+          : daysUntil <= 3
+            ? "text-brand-yellow"
+            : "text-brand-green";
+
+    return {
+      ...transaction,
+      daysUntil,
+      statusLabel,
+      statusTone,
+    };
+  });
+
+  const unreadCount = notifications.filter((notification) => notification.daysUntil === null || notification.daysUntil <= 7).length;
+
+  useEffect(() => {
+    if (!notificationsOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNotificationsOpen(false);
+      }
+    };
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest("[data-notification-root]")) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [notificationsOpen]);
 
   const systemsItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -250,12 +327,115 @@ export default function Layout({
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="relative" data-notification-root>
+              <button
+                type="button"
+                aria-label="Abrir notificacoes"
+                aria-expanded={notificationsOpen}
+                onClick={() => setNotificationsOpen((value) => !value)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-brand-border bg-brand-card text-slate-200 transition-all hover:border-brand-green/50 hover:text-white"
+              >
+                <Bell size={18} className={notifications.some((item) => item.daysUntil !== null && item.daysUntil <= 0) ? "text-brand-yellow" : undefined} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-brand-red px-1 text-[10px] font-bold text-white">
+                    {Math.min(unreadCount, 9)}{unreadCount > 9 ? "+" : ""}
+                  </span>
+                )}
+              </button>
+            </div>
             <div className={cn("status-badge hidden items-center gap-2 sm:flex", statusInfo.color)}>
               <StatusIcon size={14} className={statusInfo.pulse ? "animate-pulse" : undefined} />
               {statusInfo.text}
             </div>
+            <div className="hidden items-center gap-3 rounded-full border border-brand-border bg-brand-card px-3 py-1.5 text-xs text-slate-300 md:flex">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-green/10 font-semibold text-brand-green">
+                {session?.name?.slice(0, 1).toUpperCase() ?? "N"}
+              </div>
+              <div className="max-w-[140px]">
+                <p className="truncate font-semibold text-white">{session?.name ?? "Usuario"}</p>
+                <p className="truncate text-[10px] uppercase tracking-widest text-slate-500">{session?.email}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="rounded-full border border-brand-border bg-brand-card px-3 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-brand-red/40 hover:text-white"
+            >
+              Sair
+            </button>
           </div>
         </header>
+
+        {notificationsOpen && (
+          <div
+            className="fixed right-4 top-[72px] z-40 w-[calc(100vw-2rem)] max-w-[390px] rounded-2xl border border-brand-border bg-brand-card/95 shadow-2xl backdrop-blur-xl sm:right-6"
+            data-notification-root
+          >
+            <div className="flex items-center justify-between border-b border-brand-border px-4 py-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">Notificacoes</h3>
+                <p className="text-[10px] uppercase tracking-widest text-slate-500">
+                  Proximas contas e vencimentos
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotificationsOpen(false)}
+                className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+                aria-label="Fechar notificacoes"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto p-3">
+              {notifications.length === 0 ? (
+                <div className="rounded-xl border border-brand-green/20 bg-brand-green/5 p-4 text-sm text-slate-200">
+                  Nenhuma conta pendente no periodo selecionado.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={cn(
+                        "rounded-xl border p-3 transition-colors",
+                        notification.daysUntil !== null && notification.daysUntil < 0
+                          ? "border-brand-red/30 bg-brand-red/5"
+                          : notification.daysUntil !== null && notification.daysUntil <= 3
+                            ? "border-brand-yellow/30 bg-brand-yellow/5"
+                            : "border-brand-border bg-slate-900/80"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">{notification.description}</p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {notification.date} • {notification.subcategory} • {notification.category}
+                          </p>
+                        </div>
+                        <p className="shrink-0 font-mono text-xs font-bold text-white">
+                          {formatCurrency(notification.amount)}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <span className={cn("text-xs font-semibold", notification.statusTone)}>
+                          {notification.statusLabel}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {notification.shortageAmount > 0
+                            ? `Faltam ${formatCurrency(notification.shortageAmount)}`
+                            : "Pagamento coberto"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
           <div className="mx-auto max-w-7xl space-y-6">

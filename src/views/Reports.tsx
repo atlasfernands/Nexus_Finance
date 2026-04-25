@@ -4,7 +4,15 @@
  */
 
 import React from "react";
-import { BarChart3, Download, FileJson, FileSpreadsheet, LineChart as LineIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Calendar,
+  Download,
+  FileJson,
+  FileSpreadsheet,
+  LineChart as LineIcon,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -19,12 +27,20 @@ import {
 } from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
-import { parseDateString } from "../lib/utils";
+import { cn, formatCurrency, parseDateString } from "../lib/utils";
 import { TransactionSubcategory, TransactionType } from "../types";
 
 export default function Reports() {
   const { state } = useFinance();
-  const { currentPeriodLabel, selectedPeriod, transactions } = useFinanceStats();
+  const {
+    currentPeriodLabel,
+    selectedPeriod,
+    transactions,
+    firstNegativePendingEvent,
+    dailyBalanceTimeline,
+    upcomingPendingExpenses,
+  } =
+    useFinanceStats();
 
   const generateTrendData = () => {
     if (selectedPeriod.granularity === "year") {
@@ -165,6 +181,30 @@ export default function Reports() {
     link.remove();
   };
 
+  const negativeReasonLabel = firstNegativePendingEvent
+    ? `${firstNegativePendingEvent.transaction.description} (${firstNegativePendingEvent.transaction.category})`
+    : null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const upcomingPayments = upcomingPendingExpenses.map((transaction) => {
+    const parsedDate = parseDateString(transaction.date);
+    const dueDate = parsedDate ? new Date(parsedDate) : null;
+
+    if (dueDate) {
+      dueDate.setHours(0, 0, 0, 0);
+    }
+
+    const daysUntil = dueDate
+      ? Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    return {
+      ...transaction,
+      daysUntil,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -229,6 +269,213 @@ export default function Reports() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_1.9fr]">
+        <div className="trading-card">
+          <h3 className="mb-4 flex items-center gap-2 font-bold text-white">
+            <AlertTriangle size={18} className="text-brand-yellow" />
+            Radar do Vermelho
+          </h3>
+          <p className="-mt-2 mb-5 text-xs text-slate-500">{currentPeriodLabel}</p>
+
+          {firstNegativePendingEvent ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-brand-red/20 bg-brand-red/5 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-brand-red">Primeiro momento critico</p>
+                <p className="mt-2 text-lg font-bold text-white">{firstNegativePendingEvent.date}</p>
+                <p className="mt-1 text-sm text-slate-300">{negativeReasonLabel}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-brand-border bg-slate-900 p-3">
+                  <p className="text-[10px] uppercase text-slate-500">Saldo na vespera</p>
+                  <p className="mt-1 font-mono font-bold text-white">
+                    {formatCurrency(firstNegativePendingEvent.balanceBefore)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-brand-border bg-slate-900 p-3">
+                  <p className="text-[10px] uppercase text-slate-500">Falta para pagar</p>
+                  <p className="mt-1 font-mono font-bold text-brand-red">
+                    {formatCurrency(firstNegativePendingEvent.shortageAmount)}
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-xl border border-brand-border bg-slate-900 p-4">
+                <p className="text-[10px] uppercase text-slate-500">Conta que vira o caixa</p>
+                <p className="mt-2 text-sm text-white">{firstNegativePendingEvent.transaction.description}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {firstNegativePendingEvent.transaction.subcategory} • {firstNegativePendingEvent.transaction.category}
+                </p>
+                <p className="mt-3 font-mono text-sm text-brand-red">
+                  {firstNegativePendingEvent.transaction.type === TransactionType.EXPENSE ? "-" : "+"}
+                  {" "}
+                  {formatCurrency(firstNegativePendingEvent.transaction.amount)}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Apos esse pagamento, o saldo projetado fica em {formatCurrency(firstNegativePendingEvent.balanceAfter)}.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-brand-green/20 bg-brand-green/5 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-brand-green">Caixa protegido</p>
+              <p className="mt-2 text-sm text-slate-200">
+                Nenhuma conta pendente do periodo leva o saldo para baixo de zero.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="trading-card min-w-0">
+          <h3 className="mb-4 font-bold text-white">Linha do Tempo por Dia</h3>
+          <p className="-mt-2 mb-5 text-xs text-slate-500">
+            Datas sempre aparecem em ordem cronologica, mesmo se o CSV vier fora de sequencia.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-[880px] w-full border-collapse text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-brand-border text-slate-500 font-bold uppercase tracking-wider">
+                  <th className="px-3 py-2">Data</th>
+                  <th className="px-3 py-2 text-right">Entradas</th>
+                  <th className="px-3 py-2 text-right">Saidas</th>
+                  <th className="px-3 py-2 text-right">Saldo apos dia</th>
+                  <th className="px-3 py-2">Motivo principal</th>
+                  <th className="px-3 py-2 text-right">Impacto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-border/50">
+                {dailyBalanceTimeline.map((day) => {
+                  const reasonTransaction = day.negativeTrigger ?? day.transactions[day.transactions.length - 1];
+
+                  return (
+                    <tr
+                      key={day.date}
+                      className={cn(
+                        "transition-colors hover:bg-slate-800/30",
+                        day.negativeTrigger && "bg-brand-red/5"
+                      )}
+                    >
+                      <td className="px-3 py-3 font-mono text-slate-300">{day.date}</td>
+                      <td className="px-3 py-3 text-right font-mono text-brand-green">
+                        {formatCurrency(day.entradas)}
+                      </td>
+                      <td className="px-3 py-3 text-right font-mono text-white">
+                        {formatCurrency(day.saidas)}
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 py-3 text-right font-mono font-bold",
+                          day.saldoAposDia < 0 ? "text-brand-red" : "text-white"
+                        )}
+                      >
+                        {formatCurrency(day.saldoAposDia)}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-white">{reasonTransaction.description}</span>
+                          <span className="text-[10px] uppercase text-slate-500">
+                            {reasonTransaction.subcategory} • {reasonTransaction.category}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 py-3 text-right font-mono font-bold",
+                          reasonTransaction.impact >= 0 ? "text-brand-green" : "text-brand-red"
+                        )}
+                      >
+                        {reasonTransaction.impact >= 0 ? "+" : "-"} {formatCurrency(Math.abs(reasonTransaction.impact))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {dailyBalanceTimeline.length === 0 && (
+              <div className="py-12 text-center italic text-slate-500">
+                Nenhum lancamento encontrado no periodo para montar a linha do tempo diaria.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="trading-card min-w-0">
+        <h3 className="mb-4 flex items-center gap-2 font-bold text-white">
+          <Calendar size={18} className="text-blue-400" />
+          Calendario de Pagamentos
+        </h3>
+        <p className="-mt-2 mb-5 text-xs text-slate-500">
+          Proximas contas pendentes em ordem de vencimento. Lancamentos pagos nao entram aqui.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="min-w-[760px] w-full border-collapse text-left text-[12px]">
+            <thead>
+              <tr className="border-b border-brand-border text-slate-500 font-bold uppercase tracking-wider">
+                <th className="px-3 py-2">Data</th>
+                <th className="px-3 py-2">Status do prazo</th>
+                <th className="px-3 py-2">Conta</th>
+                <th className="px-3 py-2">Categoria</th>
+                <th className="px-3 py-2 text-right">Saldo na vespera</th>
+                <th className="px-3 py-2 text-right">Falta</th>
+                <th className="px-3 py-2 text-right">Valor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-brand-border/50">
+              {upcomingPayments.map((transaction) => {
+                const deadlineLabel =
+                  transaction.daysUntil === null
+                    ? "Data invalida"
+                    : transaction.daysUntil < 0
+                      ? `${Math.abs(transaction.daysUntil)} dia(s) atrasada`
+                      : transaction.daysUntil === 0
+                        ? "Vence hoje"
+                        : `${transaction.daysUntil} dia(s) restante(s)`;
+
+                const deadlineTone =
+                  transaction.daysUntil === null
+                    ? "text-slate-500"
+                    : transaction.daysUntil < 0
+                      ? "text-brand-red"
+                      : transaction.daysUntil === 0
+                        ? "text-brand-yellow"
+                        : "text-slate-300";
+
+                return (
+                  <tr key={transaction.id} className="transition-colors hover:bg-slate-800/30">
+                    <td className="px-3 py-3 font-mono text-slate-300">{transaction.date}</td>
+                    <td className={cn("px-3 py-3 font-medium", deadlineTone)}>{deadlineLabel}</td>
+                    <td className="px-3 py-3 text-white">{transaction.description}</td>
+                    <td className="px-3 py-3 text-slate-400">
+                      {transaction.subcategory} • {transaction.category}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-white">
+                      {formatCurrency(transaction.balanceBefore)}
+                    </td>
+                    <td
+                      className={cn(
+                        "px-3 py-3 text-right font-mono font-bold",
+                        transaction.shortageAmount > 0 ? "text-brand-red" : "text-brand-green"
+                      )}
+                    >
+                      {transaction.shortageAmount > 0 ? formatCurrency(transaction.shortageAmount) : "Coberto"}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono font-bold text-white">
+                      {formatCurrency(transaction.amount)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {upcomingPayments.length === 0 && (
+            <div className="py-12 text-center italic text-slate-500">
+              Nenhuma conta pendente encontrada no periodo selecionado.
+            </div>
+          )}
         </div>
       </div>
 

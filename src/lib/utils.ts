@@ -65,6 +65,25 @@ export function getMonthYear(date: Date): string {
   return `${date.getMonth() + 1}/${date.getFullYear()}`;
 }
 
+export function compareDateStrings(dateA: string, dateB: string): number {
+  const parsedA = parseDateString(dateA);
+  const parsedB = parseDateString(dateB);
+
+  if (parsedA && parsedB) {
+    return parsedA.getTime() - parsedB.getTime();
+  }
+
+  if (parsedA) {
+    return -1;
+  }
+
+  if (parsedB) {
+    return 1;
+  }
+
+  return dateA.localeCompare(dateB, "pt-BR");
+}
+
 export function generateId() {
   return Math.random().toString(36).substring(2, 11);
 }

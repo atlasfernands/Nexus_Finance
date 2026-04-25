@@ -11,7 +11,23 @@ import {
   TransactionSubcategory,
   TransactionType,
 } from "../../types";
-import { parseDateString } from "../../lib/utils";
+import { compareDateStrings, parseDateString } from "../../lib/utils";
+
+function sortTransactionsByDate(transactions: Transaction[]) {
+  return [...transactions].sort((left, right) => {
+    const dateComparison = compareDateStrings(left.date, right.date);
+
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+
+    if (left.type !== right.type) {
+      return left.type === TransactionType.INCOME ? -1 : 1;
+    }
+
+    return left.description.localeCompare(right.description, "pt-BR");
+  });
+}
 
 function formatReportingPeriodLabel(period: ReportingPeriod): string {
   if (period.granularity === "year") {
@@ -61,9 +77,20 @@ export function useFinanceStats() {
     const parsedDate = parseDateString(transaction.date);
     return parsedDate ? isTransactionInReportingPeriod(parsedDate, reportingPeriod) : false;
   });
+  const allActiveTransactions = sortTransactionsByDate(
+    allTransactions.filter((transaction) => transaction.status !== TransactionStatus.CANCELLED)
+  );
 
   const currentPeriodTransactions = transactions.filter(
     (transaction) => transaction.status !== TransactionStatus.CANCELLED
+  );
+  const sortedCurrentPeriodTransactions = sortTransactionsByDate(currentPeriodTransactions);
+  const realizedPeriodTransactions = currentPeriodTransactions.filter(
+    (transaction) =>
+      transaction.status === TransactionStatus.COMPLETED || transaction.status === TransactionStatus.PAID
+  );
+  const pendingPeriodTransactions = currentPeriodTransactions.filter(
+    (transaction) => transaction.status === TransactionStatus.PENDING
   );
   const previousPeriodTransactions = allTransactions.filter((transaction) => {
     const parsedDate = parseDateString(transaction.date);
@@ -88,7 +115,7 @@ export function useFinanceStats() {
           saidas: 0,
         }));
 
-  currentPeriodTransactions.forEach((transaction) => {
+  sortedCurrentPeriodTransactions.forEach((transaction) => {
     const parsedDate = parseDateString(transaction.date);
     if (!parsedDate) {
       return;
@@ -106,11 +133,7 @@ export function useFinanceStats() {
     }
   });
 
-  const saldoRealizado = currentPeriodTransactions
-    .filter(
-      (transaction) =>
-        transaction.status === TransactionStatus.COMPLETED || transaction.status === TransactionStatus.PAID
-    )
+  const saldoRealizado = realizedPeriodTransactions
     .reduce(
       (sum, transaction) =>
         sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
@@ -122,6 +145,12 @@ export function useFinanceStats() {
       sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
     0
   );
+  const pendingBalanceImpact = pendingPeriodTransactions.reduce(
+    (sum, transaction) =>
+      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+    0
+  );
+  const pendingTransactionsCount = pendingPeriodTransactions.length;
 
   const entradasMes = currentPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.INCOME)
@@ -185,6 +214,113 @@ export function useFinanceStats() {
 
   const metaAtingidaPercent =
     state.profile.goal > 0 ? Math.min((saldoLoja / state.profile.goal) * 100, 100) : 0;
+  const goalProgressPercent = state.profile.goal > 0 ? (entradasMes / state.profile.goal) * 100 : 0;
+  const costSharePercent = entradasMes > 0 ? (saidasMes / entradasMes) * 100 : 0;
+
+  const ledgerTimeline = allActiveTransactions.map((transaction) => {
+    const impact = transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
+    return {
+      transaction,
+      impact,
+    };
+  });
+
+  let runningLedgerBalance = 0;
+  const enrichedLedgerTimeline = ledgerTimeline.map(({ transaction, impact }) => {
+    const balanceBefore = runningLedgerBalance;
+    runningLedgerBalance += impact;
+    const balanceAfter = runningLedgerBalance;
+
+    return {
+      ...transaction,
+      impact,
+      balanceBefore,
+      balanceAfter,
+    };
+  });
+
+  const enrichedCurrentPeriodPending = enrichedLedgerTimeline.filter(
+    (transaction) =>
+      transaction.status === TransactionStatus.PENDING &&
+      isTransactionInReportingPeriod(parseDateString(transaction.date) ?? new Date(Number.NaN), reportingPeriod)
+  );
+  const enrichedPendingExpenseTransactions = enrichedCurrentPeriodPending
+    .filter((transaction) => transaction.type === TransactionType.EXPENSE)
+    .map((transaction) => ({
+      ...transaction,
+      shortageAmount: Math.max(transaction.amount - transaction.balanceBefore, 0),
+    }));
+
+  let firstNegativePendingEvent:
+    | {
+        balanceAfter: number;
+        balanceBefore: number;
+        date: string;
+        shortageAmount: number;
+        transaction: Transaction;
+      }
+    | undefined;
+
+  const dailyBalanceMap = new Map<
+    string,
+    {
+      date: string;
+      entradas: number;
+      saidas: number;
+      saldoAposDia: number;
+      saldoAntesDoDia: number;
+      transactions: Array<
+        Transaction & {
+          impact: number;
+          balanceAfter: number;
+          balanceBefore: number;
+        }
+      >;
+    }
+  >();
+
+  enrichedCurrentPeriodPending.forEach((transaction) => {
+    if (!firstNegativePendingEvent && transaction.type === TransactionType.EXPENSE && transaction.balanceAfter < 0) {
+      firstNegativePendingEvent = {
+        date: transaction.date,
+        transaction,
+        balanceBefore: transaction.balanceBefore,
+        balanceAfter: transaction.balanceAfter,
+        shortageAmount: Math.max(transaction.amount - transaction.balanceBefore, 0),
+      };
+    }
+
+    const currentDay = dailyBalanceMap.get(transaction.date) ?? {
+      date: transaction.date,
+      entradas: 0,
+      saidas: 0,
+      saldoAntesDoDia: transaction.balanceBefore,
+      saldoAposDia: transaction.balanceAfter,
+      transactions: [],
+    };
+
+    if (transaction.type === TransactionType.INCOME) {
+      currentDay.entradas += transaction.amount;
+    } else {
+      currentDay.saidas += transaction.amount;
+    }
+
+    currentDay.saldoAposDia = transaction.balanceAfter;
+    currentDay.transactions.push({
+      ...transaction,
+    });
+
+    dailyBalanceMap.set(transaction.date, currentDay);
+  });
+
+  const dailyBalanceTimeline = Array.from(dailyBalanceMap.values()).map((day) => {
+    const negativeTrigger = day.transactions.find((transaction) => transaction.balanceAfter < 0);
+
+    return {
+      ...day,
+      negativeTrigger,
+    };
+  });
 
   return {
     selectedPeriod: reportingPeriod,
@@ -192,6 +328,8 @@ export function useFinanceStats() {
     previousPeriodLabel,
     saldoRealizado,
     saldoProjetado,
+    pendingBalanceImpact,
+    pendingTransactionsCount,
     entradasMes,
     saidasMes,
     saldoMesAtual,
@@ -205,6 +343,11 @@ export function useFinanceStats() {
     riskStatus,
     saldoLoja,
     metaAtingidaPercent,
+    goalProgressPercent,
+    costSharePercent,
+    firstNegativePendingEvent,
+    dailyBalanceTimeline,
+    upcomingPendingExpenses: enrichedPendingExpenseTransactions,
     transactions,
     allTransactions,
   };

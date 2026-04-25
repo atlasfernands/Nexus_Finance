@@ -4,8 +4,10 @@
  */
 
 import React, { useState, Suspense } from "react";
+import { AuthProvider, useAuth } from "./features/auth/AuthContext";
 import { FinanceProvider } from "./features/finance/FinanceContext";
 import Layout, { View } from "./components/Layout";
+import Auth from "./views/Auth";
 import Dashboard from "./views/Dashboard";
 import Transactions from "./views/Transactions";
 import ImportTransactions from "./views/ImportTransactions";
@@ -16,6 +18,7 @@ import AIInsights from "./views/AIInsights";
 import Settings from "./views/Settings";
 
 function AppContent() {
+  const { isReady, session } = useAuth();
   const [currentView, setView] = useState<View>("dashboard");
 
   const viewComponents = {
@@ -31,6 +34,14 @@ function AppContent() {
 
   const ViewComponent = viewComponents[currentView] || Dashboard;
 
+  if (!isReady) {
+    return <div className="flex min-h-screen items-center justify-center text-brand-green">Carregando acesso...</div>;
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
+
   return (
     <Layout currentView={currentView} setView={setView}>
       <Suspense fallback={<div className="flex h-64 items-center justify-center text-brand-green animate-pulse">Carregando Nexus Engine...</div>}>
@@ -42,9 +53,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <FinanceProvider>
-      <AppContent />
-    </FinanceProvider>
+    <AuthProvider>
+      <FinanceProvider>
+        <AppContent />
+      </FinanceProvider>
+    </AuthProvider>
   );
 }
 

@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { Transaction, TransactionType, TransactionSubcategory, TransactionStatus } from "../types";
-import { generateId } from "../lib/utils";
+import { compareDateStrings, generateId } from "../lib/utils";
+import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export interface ImportResult {
   transactions: Transaction[];
@@ -35,7 +35,7 @@ export class ImportService {
     valor: ["valor", "value", "amount", "preco", "price", "total", "montante", "valor (r$)"],
     data: ["data", "date", "dt", "data_compra", "purchase_date"],
     categoria: ["categoria", "category", "tipo", "type", "classificacao"],
-    tipo: ["tipo", "type", "operacao", "operation", "movimento", "tipo\n(entrada/saída)"],
+    tipo: ["tipo", "type", "operacao", "operation", "movimento", "tipo\n(entrada/saida)"],
     subcategoria: ["subcategoria", "subcategory", "sistema", "system"],
     status: ["status", "estado", "state", "situacao"],
   };
@@ -50,7 +50,7 @@ export class ImportService {
     } else if (extension === "xlsx" || extension === "xls") {
       rawData = await this.parseExcel(file);
     } else {
-      throw new Error("Formato de arquivo não suportado. Use CSV ou XLSX.");
+      throw new Error("Formato de arquivo nao suportado. Use CSV ou XLSX.");
     }
 
     return this.processData(rawData);
@@ -59,42 +59,42 @@ export class ImportService {
   private static parseCSV(file: File): Promise<any[]> {
     return new Promise((resolve, reject) => {
       Papa.parse(file, {
-        header: false, // Don't assume first row is headers
+        header: false,
         skipEmptyLines: true,
         complete: (results) => {
           let data = results.data as any[];
 
-          // Skip non-data rows (titles, empty rows, etc.)
           data = data.filter((row: any) => {
-            if (!Array.isArray(row) || row.length === 0) return false;
-
-            // Skip rows that look like titles
-            const rowText = row.join(' ').toLowerCase();
-            if (rowText.includes('controle financeiro') ||
-                rowText.includes('lançamentos') ||
-                rowText.includes('📋')) {
+            if (!Array.isArray(row) || row.length === 0) {
               return false;
             }
 
-            // Skip rows that don't have enough columns or look like headers
-            if (row.length < 3) return false;
+            const rowText = row.join(" ").toLowerCase();
+            if (
+              rowText.includes("controle financeiro") ||
+              rowText.includes("lancamentos") ||
+              rowText.includes("📋")
+            ) {
+              return false;
+            }
 
-            // Check if this looks like a data row (has date in first column)
-            const firstCol = String(row[0] || '').trim();
+            if (row.length < 3) {
+              return false;
+            }
+
+            const firstCol = String(row[0] || "").trim();
             const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
             return datePattern.test(firstCol);
           });
 
-          // Convert to objects using detected headers
           if (data.length > 0) {
-            // Use the first data row to detect column structure
             const sampleRow = data[0];
             const headers = this.inferHeadersFromData(sampleRow);
 
             data = data.map((row: any) => {
               const obj: any = {};
               headers.forEach((header, index) => {
-                obj[header] = row[index] || '';
+                obj[header] = row[index] || "";
               });
               return obj;
             });
@@ -110,28 +110,29 @@ export class ImportService {
   }
 
   private static inferHeadersFromData(sampleRow: any[]): string[] {
-    const headers = ['data', 'descricao', 'categoria', 'tipo', 'valor', 'status', 'saldo_acumulado'];
+    const headers = ["data", "descricao", "categoria", "tipo", "valor", "status", "saldo_acumulado"];
 
-    // Adjust based on actual data
     if (sampleRow.length >= 7) {
       return headers;
-    } else if (sampleRow.length >= 6) {
-      return headers.slice(0, 6);
-    } else {
-      return sampleRow.map((_, i) => `col_${i + 1}`);
     }
+
+    if (sampleRow.length >= 6) {
+      return headers.slice(0, 6);
+    }
+
+    return sampleRow.map((_, index) => `col_${index + 1}`);
   }
 
   private static parseExcel(file: File): Promise<any[]> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = (event) => {
         try {
-          const bstr = e.target?.result;
-          const wb = XLSX.read(bstr, { type: "binary" });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const jsonData = XLSX.utils.sheet_to_json(ws);
+          const binary = event.target?.result;
+          const workbook = XLSX.read(binary, { type: "binary" });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
           resolve(jsonData as any[]);
         } catch (error) {
           reject(new Error(`Erro ao processar Excel: ${error}`));
@@ -142,17 +143,28 @@ export class ImportService {
     });
   }
 
+  private static sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
+    return [...transactions].sort((left, right) => {
+      const dateComparison = compareDateStrings(left.date, right.date);
+
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+
+      return left.description.localeCompare(right.description, "pt-BR");
+    });
+  }
+
   private static processData(rawData: any[]): ImportResult {
     const transactions: Transaction[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
 
     if (rawData.length === 0) {
-      errors.push("Arquivo vazio ou sem dados válidos");
+      errors.push("Arquivo vazio ou sem dados validos");
       return { transactions, errors, warnings };
     }
 
-    // Auto-detect column mapping
     const mapping = this.detectColumnMapping(rawData[0]);
 
     rawData.forEach((row, index) => {
@@ -166,30 +178,38 @@ export class ImportService {
       }
     });
 
-    // Generate warnings for common issues
-    if (transactions.length > 0) {
-      const hasInvalidDates = transactions.some(t => !this.isValidDate(t.date));
+    const sortedTransactions = this.sortTransactionsByDate(transactions);
+
+    if (
+      sortedTransactions.length > 1 &&
+      sortedTransactions.some((transaction, index) => transaction.id !== transactions[index]?.id)
+    ) {
+      warnings.push("Lancamentos reordenados automaticamente pela data correta do arquivo");
+    }
+
+    if (sortedTransactions.length > 0) {
+      const hasInvalidDates = sortedTransactions.some((transaction) => !this.isValidDate(transaction.date));
       if (hasInvalidDates) {
         warnings.push("Algumas datas podem estar em formato incorreto");
       }
 
-      const hasZeroValues = transactions.some(t => t.amount === 0);
+      const hasZeroValues = sortedTransactions.some((transaction) => transaction.amount === 0);
       if (hasZeroValues) {
-        warnings.push("Algumas transações têm valor zero");
+        warnings.push("Algumas transacoes tem valor zero");
       }
     }
 
-    return { transactions, errors, warnings };
+    return { transactions: sortedTransactions, errors, warnings };
   }
 
   private static detectColumnMapping(sampleRow: any): ColumnMapping {
     const mapping = { ...this.DEFAULT_MAPPING };
-    const headers = Object.keys(sampleRow).map(h => h.toLowerCase().trim());
+    const headers = Object.keys(sampleRow).map((header) => header.toLowerCase().trim());
 
     for (const [field, possibleHeaders] of Object.entries(this.COMMON_HEADERS)) {
       for (const header of headers) {
-        if (possibleHeaders.some(ph => header.includes(ph) || ph.includes(header))) {
-          (mapping as any)[field] = Object.keys(sampleRow).find(h => h.toLowerCase().trim() === header) || field;
+        if (possibleHeaders.some((possibleHeader) => header.includes(possibleHeader) || possibleHeader.includes(header))) {
+          (mapping as any)[field] = Object.keys(sampleRow).find((key) => key.toLowerCase().trim() === header) || field;
           break;
         }
       }
@@ -198,12 +218,7 @@ export class ImportService {
     return mapping;
   }
 
-  private static mapRowToTransaction(
-    row: any,
-    mapping: ColumnMapping,
-    rowNumber: number
-  ): Transaction | null {
-    // Extract values with fallbacks
+  private static mapRowToTransaction(row: any, mapping: ColumnMapping, rowNumber: number): Transaction | null {
     const descricao = this.extractStringValue(row, mapping.descricao);
     const valorRaw = this.extractNumericValue(row, mapping.valor);
     const dataRaw = this.extractStringValue(row, mapping.data);
@@ -212,30 +227,35 @@ export class ImportService {
     const subcategoriaRaw = this.extractStringValue(row, mapping.subcategoria);
     const statusRaw = this.extractStringValue(row, mapping.status);
 
-    // Validate required fields
     if (!descricao) {
-      throw new Error("Descrição obrigatória não encontrada");
+      throw new Error("Descricao obrigatoria nao encontrada");
     }
 
-    if (valorRaw === null || isNaN(valorRaw)) {
-      throw new Error("Valor numérico obrigatório não encontrado");
+    if (valorRaw === null || Number.isNaN(valorRaw)) {
+      throw new Error("Valor numerico obrigatorio nao encontrado");
     }
 
-    // Process data
     const data = this.normalizeDate(dataRaw);
     if (!data) {
-      throw new Error(`Data inválida: ${dataRaw}`);
+      throw new Error(`Data invalida: ${dataRaw}`);
     }
 
-    // Determine transaction type
     let tipo: TransactionType = TransactionType.EXPENSE;
     if (tipoRaw) {
       const tipoLower = tipoRaw.toLowerCase();
-      if (tipoLower.includes("entrada") || tipoLower.includes("🟢") || tipoLower.includes("income") ||
-          tipoLower.includes("recebimento") || tipoLower.includes("renda")) {
+      if (
+        tipoLower.includes("entrada") ||
+        tipoLower.includes("income") ||
+        tipoLower.includes("recebimento") ||
+        tipoLower.includes("renda")
+      ) {
         tipo = TransactionType.INCOME;
-      } else if (tipoLower.includes("saída") || tipoLower.includes("🔴") || tipoLower.includes("expense") ||
-                 tipoLower.includes("pagamento") || tipoLower.includes("despesa")) {
+      } else if (
+        tipoLower.includes("saida") ||
+        tipoLower.includes("expense") ||
+        tipoLower.includes("pagamento") ||
+        tipoLower.includes("despesa")
+      ) {
         tipo = TransactionType.EXPENSE;
       } else if (valorRaw < 0) {
         tipo = TransactionType.EXPENSE;
@@ -246,7 +266,6 @@ export class ImportService {
       tipo = valorRaw >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
     }
 
-    // Determine subcategoria
     let subcategoria: TransactionSubcategory = TransactionSubcategory.HOME;
     if (subcategoriaRaw) {
       const subLower = subcategoriaRaw.toLowerCase();
@@ -254,7 +273,6 @@ export class ImportService {
         subcategoria = TransactionSubcategory.STORE;
       }
     } else if (categoria) {
-      // Try to extract subcategoria from categoria field
       const catLower = categoria.toLowerCase();
       if (catLower.includes("loja - vendas") || catLower.includes("loja - estoque")) {
         subcategoria = TransactionSubcategory.STORE;
@@ -263,16 +281,17 @@ export class ImportService {
       }
     }
 
-    // Determine status
     let status: Transaction["status"] = TransactionStatus.COMPLETED;
     if (statusRaw) {
       const statusLower = statusRaw.toLowerCase();
-      if (statusLower.includes("pendente") || statusLower.includes("pending") ||
-          statusLower.includes("⏳") || statusLower.includes("não pago")) {
+      if (statusLower.includes("pendente") || statusLower.includes("pending") || statusLower.includes("nao pago")) {
         status = TransactionStatus.PENDING;
-      } else if (statusLower.includes("pago") || statusLower.includes("paid") ||
-                 statusLower.includes("✅") || statusLower.includes("realizado") ||
-                 statusLower.includes("feito")) {
+      } else if (
+        statusLower.includes("pago") ||
+        statusLower.includes("paid") ||
+        statusLower.includes("realizado") ||
+        statusLower.includes("feito")
+      ) {
         status = TransactionStatus.PAID;
       }
     }
@@ -285,102 +304,93 @@ export class ImportService {
       subcategory: subcategoria,
       type: tipo,
       amount: Math.abs(valorRaw),
-      status: status,
+      status,
       recurring: false,
     };
   }
 
   private static extractStringValue(row: any, field: string): string | undefined {
     const value = row[field];
-    if (value === null || value === undefined) return undefined;
+    if (value === null || value === undefined) {
+      return undefined;
+    }
     return String(value).trim();
   }
 
   private static extractNumericValue(row: any, field: string): number | null {
     const value = row[field];
-    if (value === null || value === undefined || value === "") return null;
-
-    let cleaned = String(value).trim();
-
-    // Remove currency symbols, parentheses, and spaces
-    cleaned = cleaned
-      .replace(/[()]/g, '')
-      .replace(/R\$\s*/g, '')
-      .replace(/\s+/g, '');
-
-    // Keep only digits, dots, commas and minus
-    cleaned = cleaned.replace(/[^\d.,-]/g, '');
-
-    const hasDot = cleaned.includes('.');
-    const hasComma = cleaned.includes(',');
-
-    if (hasDot && hasComma) {
-      const lastDot = cleaned.lastIndexOf('.');
-      const lastComma = cleaned.lastIndexOf(',');
-
-      if (lastComma > lastDot) {
-        // Brazilian format with thousand separators and decimal comma
-        cleaned = cleaned.replace(/\./g, '');
-        cleaned = cleaned.replace(/,/, '.');
-      } else {
-        // American style with comma thousand separators and dot decimal separator
-        cleaned = cleaned.replace(/,/g, '');
-      }
-    } else if (hasComma) {
-      cleaned = cleaned.replace(/,/, '.');
+    if (value === null || value === undefined || value === "") {
+      return null;
     }
 
-    cleaned = cleaned.replace(/[^\d.\-]/g, '');
+    let cleaned = String(value).trim();
+    cleaned = cleaned.replace(/[()]/g, "").replace(/R\$\s*/g, "").replace(/\s+/g, "");
+    cleaned = cleaned.replace(/[^\d.,-]/g, "");
 
-    const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? null : parsed;
+    const hasDot = cleaned.includes(".");
+    const hasComma = cleaned.includes(",");
+
+    if (hasDot && hasComma) {
+      const lastDot = cleaned.lastIndexOf(".");
+      const lastComma = cleaned.lastIndexOf(",");
+
+      if (lastComma > lastDot) {
+        cleaned = cleaned.replace(/\./g, "");
+        cleaned = cleaned.replace(/,/, ".");
+      } else {
+        cleaned = cleaned.replace(/,/g, "");
+      }
+    } else if (hasComma) {
+      cleaned = cleaned.replace(/,/, ".");
+    }
+
+    cleaned = cleaned.replace(/[^\d.\-]/g, "");
+
+    const parsed = Number.parseFloat(cleaned);
+    return Number.isNaN(parsed) ? null : parsed;
   }
 
   private static normalizeDate(dateStr: string): string | null {
-    if (!dateStr) return null;
+    if (!dateStr) {
+      return null;
+    }
 
-    // Try different date formats
     const formats = [
-      // DD/MM/YYYY
       /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
-      // DD-MM-YYYY
       /^(\d{1,2})-(\d{1,2})-(\d{4})$/,
-      // YYYY/MM/DD
       /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/,
-      // YYYY-MM-DD
       /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
-      // DD/MM/YY
       /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/,
     ];
 
     for (const format of formats) {
       const match = dateStr.match(format);
-      if (match) {
-        let day, month, year;
+      if (!match) {
+        continue;
+      }
 
-        if (format === formats[0] || format === formats[1]) {
-          // DD/MM/YYYY or DD-MM-YYYY
-          [, day, month, year] = match;
-        } else if (format === formats[2] || format === formats[3]) {
-          // YYYY/MM/DD or YYYY-MM-DD
-          [, year, month, day] = match;
-        } else {
-          // DD/MM/YY
-          [, day, month, year] = match;
-          year = `20${year}`;
-        }
+      let day: string;
+      let month: string;
+      let year: string;
 
-        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-        if (this.isValidDate(date)) {
-          return date.toLocaleDateString('pt-BR');
-        }
+      if (format === formats[0] || format === formats[1]) {
+        [, day, month, year] = match;
+      } else if (format === formats[2] || format === formats[3]) {
+        [, year, month, day] = match;
+      } else {
+        [, day, month, year] = match;
+        year = `20${year}`;
+      }
+
+      const parsedDate = new Date(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10));
+      if (this.isValidDate(parsedDate)) {
+        return parsedDate.toLocaleDateString("pt-BR");
       }
     }
 
-    // Try to parse as ISO date
-    const isoDate = new Date(dateStr);
-    if (this.isValidDate(isoDate)) {
-      return isoDate.toLocaleDateString('pt-BR');
+    const fallbackDate = new Date(dateStr);
+    if (this.isValidDate(fallbackDate)) {
+      return fallbackDate.toLocaleDateString("pt-BR");
     }
 
     return null;
@@ -388,9 +398,10 @@ export class ImportService {
 
   private static isValidDate(date: Date | string): boolean {
     if (typeof date === "string") {
-      const parsed = new Date(date);
-      return !isNaN(parsed.getTime());
+      const parsedDate = new Date(date);
+      return !Number.isNaN(parsedDate.getTime());
     }
-    return !isNaN(date.getTime());
+
+    return !Number.isNaN(date.getTime());
   }
 }

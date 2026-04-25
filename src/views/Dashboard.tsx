@@ -22,23 +22,65 @@ export default function Dashboard() {
     previousPeriodLabel,
     saldoRealizado,
     saldoProjetado,
+    pendingBalanceImpact,
+    pendingTransactionsCount,
     entradasMes,
     saidasMes,
     saldoMesAtual,
     saldoMesAnterior,
-    deltaEntradas,
-    deltaSaidas,
     deltaSaldo,
     monthlyFlow,
     monthlyRiskRatio,
     filledRiskSegments,
     riskStatus,
     metaAtingidaPercent,
+    goalProgressPercent,
+    costSharePercent,
   } = useFinanceStats();
   const { state } = useFinance();
 
   const goalValue = state.profile.goal;
   const goalAmountReached = (metaAtingidaPercent * goalValue) / 100;
+
+  const saldoComparisonLabel =
+    saldoMesAtual === 0 && saldoMesAnterior === 0
+      ? `Sem movimentacao em ${currentPeriodLabel}`
+      : saldoMesAnterior === 0
+        ? `Base anterior zerada em ${previousPeriodLabel}`
+        : `${deltaSaldo >= 0 ? "+" : "-"}${Math.abs(deltaSaldo).toFixed(1)}% vs ${previousPeriodLabel}`;
+  const saldoComparisonTone =
+    saldoMesAtual === 0 && saldoMesAnterior === 0
+      ? "text-slate-500"
+      : deltaSaldo >= 0
+        ? "text-brand-green"
+        : "text-brand-red";
+
+  const pendingLabel =
+    pendingTransactionsCount > 0
+      ? `${pendingTransactionsCount} pend. impactam ${formatCurrency(Math.abs(pendingBalanceImpact))}`
+      : "Sem pendencias no periodo";
+  const pendingTone =
+    pendingTransactionsCount === 0
+      ? "text-slate-500"
+      : pendingBalanceImpact >= 0
+        ? "text-brand-green"
+        : "text-brand-yellow";
+
+  const goalLabel =
+    goalValue > 0
+      ? `${goalProgressPercent.toFixed(1)}% da meta de ${formatCurrency(goalValue)}`
+      : "Defina uma meta para comparar";
+  const goalTone =
+    goalValue <= 0 ? "text-slate-500" : goalProgressPercent >= 100 ? "text-brand-green" : "text-brand-yellow";
+
+  const costsLabel =
+    entradasMes > 0
+      ? `${costSharePercent.toFixed(1)}% das entradas consumido`
+      : saidasMes > 0
+        ? "Sem entradas para calcular custos"
+        : "Sem custos no periodo";
+  const costsTone =
+    entradasMes > 0 ? (costSharePercent >= 100 ? "text-brand-red" : "text-brand-yellow") : "text-slate-500";
 
   return (
     <div className="space-y-6">
@@ -56,18 +98,7 @@ export default function Dashboard() {
           </div>
           <p className="kpi-value text-white">{formatCurrency(saldoRealizado)}</p>
           <div className="mt-4 flex items-center gap-1">
-            <span
-              className={cn(
-                "text-[10px] font-medium",
-                deltaSaldo >= 0 ? "text-brand-green" : "text-brand-red"
-              )}
-            >
-              {saldoMesAnterior === 0 && saldoMesAtual === 0
-                ? "Sem dados para comparacao"
-                : saldoMesAnterior === 0
-                  ? "Novo periodo"
-                  : `${deltaSaldo >= 0 ? "↑" : "↓"} ${Math.abs(deltaSaldo).toFixed(1)}% vs ${previousPeriodLabel}`}
-            </span>
+            <span className={cn("text-[10px] font-medium", saldoComparisonTone)}>{saldoComparisonLabel}</span>
           </div>
         </motion.div>
 
@@ -84,7 +115,7 @@ export default function Dashboard() {
           </div>
           <p className="kpi-value text-brand-yellow">{formatCurrency(saldoProjetado)}</p>
           <div className="mt-4 flex items-center gap-1">
-            <span className="font-mono text-[10px] font-medium text-slate-500">INCL. PENDENTES</span>
+            <span className={cn("font-mono text-[10px] font-medium uppercase", pendingTone)}>{pendingLabel}</span>
           </div>
         </motion.div>
 
@@ -101,7 +132,7 @@ export default function Dashboard() {
           </div>
           <p className="kpi-value text-white">{formatCurrency(entradasMes)}</p>
           <div className="mt-4 flex items-center gap-1">
-            <span className="text-[10px] font-medium text-brand-green">↑ {deltaEntradas.toFixed(1)}% vs meta</span>
+            <span className={cn("text-[10px] font-medium", goalTone)}>{goalLabel}</span>
           </div>
         </motion.div>
 
@@ -118,7 +149,7 @@ export default function Dashboard() {
           </div>
           <p className="kpi-value text-white">{formatCurrency(saidasMes)}</p>
           <div className="mt-4 flex items-center gap-1">
-            <span className="text-[10px] font-medium text-brand-red">↓ {deltaSaidas.toFixed(1)}% custos</span>
+            <span className={cn("text-[10px] font-medium", costsTone)}>{costsLabel}</span>
           </div>
         </motion.div>
       </div>

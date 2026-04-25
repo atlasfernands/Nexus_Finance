@@ -15,7 +15,7 @@ import {
   TransactionType,
 } from "../../types";
 import { loadState, saveState } from "../../lib/storage";
-import { generateId } from "../../lib/utils";
+import { compareDateStrings, generateId } from "../../lib/utils";
 
 const STORAGE_KEY = "controle-financeiro-integrado:v1";
 
@@ -194,15 +194,27 @@ function normalizeFinanceState(rawState: unknown, fallbackState: FinanceState): 
   };
 }
 
+function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
+  return [...transactions].sort((left, right) => {
+    const dateComparison = compareDateStrings(left.date, right.date);
+
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+
+    return left.description.localeCompare(right.description, "pt-BR");
+  });
+}
+
 function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
   switch (action.type) {
     case "ADD_TRANSACTION":
-      return { ...state, transactions: [action.payload, ...state.transactions] };
+      return { ...state, transactions: sortTransactionsByDate([...state.transactions, action.payload]) };
     case "UPDATE_TRANSACTION":
       return {
         ...state,
-        transactions: state.transactions.map((transaction) =>
-          transaction.id === action.payload.id ? action.payload : transaction
+        transactions: sortTransactionsByDate(
+          state.transactions.map((transaction) => (transaction.id === action.payload.id ? action.payload : transaction))
         ),
       };
     case "DELETE_TRANSACTION":
@@ -211,7 +223,7 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
         transactions: state.transactions.filter((transaction) => transaction.id !== action.payload),
       };
     case "SET_TRANSACTIONS":
-      return { ...state, transactions: action.payload };
+      return { ...state, transactions: sortTransactionsByDate(action.payload) };
     case "UPDATE_PROFILE":
       return { ...state, profile: { ...state.profile, ...action.payload } };
     case "UPDATE_PREFERENCES":
