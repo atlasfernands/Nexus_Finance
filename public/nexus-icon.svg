@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title>Nexus Finance</title>
+  <rect width="512" height="512" rx="112" fill="#00FF9D" />
+  <path
+    fill="#000000"
+    d="M144 120h78l146 205V120h78v272h-78L222 187v205h-78V120Z"
+  />
+</svg>
