@@ -4,6 +4,7 @@
  */
 
 import React, { useState, Suspense } from "react";
+import { Analytics } from '@vercel/analytics/react';
 import { AuthProvider, useAuth } from "./features/auth/AuthContext";
 import { FinanceProvider, useFinance } from "./features/finance/FinanceContext";
 import Layout, { View } from "./components/Layout";
@@ -57,6 +58,7 @@ export default function App() {
     <AuthProvider>
       <FinanceProvider>
         <AppContent />
+        <Analytics />
       </FinanceProvider>
     </AuthProvider>
   );
