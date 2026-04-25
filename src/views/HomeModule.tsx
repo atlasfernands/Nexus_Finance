@@ -12,7 +12,7 @@ import { formatCurrency } from "../lib/utils";
 import { TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export default function HomeModule() {
-  const { dispatch } = useFinance();
+  const { updateTransaction } = useFinance();
   const { currentPeriodLabel, transactions } = useFinanceStats();
 
   const homeTransactions = transactions.filter(
@@ -51,10 +51,7 @@ export default function HomeModule() {
   const markAsPaid = (id: string) => {
     const transaction = transactions.find((item) => item.id === id);
     if (transaction) {
-      dispatch({
-        type: "UPDATE_TRANSACTION",
-        payload: { ...transaction, status: TransactionStatus.PAID },
-      });
+      updateTransaction({ ...transaction, status: TransactionStatus.PAID });
     }
   };
 

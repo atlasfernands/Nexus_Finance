@@ -7,17 +7,17 @@ export enum TransactionStatus {
   COMPLETED = "realizado",
   PENDING = "pendente",
   PAID = "pago",
-  CANCELLED = "cancelado"
+  CANCELLED = "cancelado",
 }
 
 export enum TransactionType {
   INCOME = "entrada",
-  EXPENSE = "saída"
+  EXPENSE = "saida",
 }
 
 export enum TransactionSubcategory {
   HOME = "Casa",
-  STORE = "Loja"
+  STORE = "Loja",
 }
 
 export interface Transaction {

@@ -14,6 +14,11 @@ import {
   TransactionSubcategory,
   TransactionType,
 } from "../../types";
+import {
+  buildDuplicateTransactionMessage,
+  findDuplicateTransaction,
+  partitionTransactionsByDuplicates,
+} from "../../lib/transactionDuplicates";
 import { loadOptionalState, saveState } from "../../lib/storage";
 import { compareDateStrings, generateId } from "../../lib/utils";
 import { useAuth } from "../auth/AuthContext";
@@ -230,15 +235,25 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
   switch (action.type) {
     case "HYDRATE_STATE":
       return normalizeFinanceState(action.payload, createInitialState());
-    case "ADD_TRANSACTION":
+    case "ADD_TRANSACTION": {
+      if (findDuplicateTransaction(action.payload, state.transactions)) {
+        return state;
+      }
+
       return { ...state, transactions: sortTransactionsByDate([...state.transactions, action.payload]) };
-    case "UPDATE_TRANSACTION":
+    }
+    case "UPDATE_TRANSACTION": {
+      if (findDuplicateTransaction(action.payload, state.transactions, { ignoreId: action.payload.id })) {
+        return state;
+      }
+
       return {
         ...state,
         transactions: sortTransactionsByDate(
           state.transactions.map((transaction) => (transaction.id === action.payload.id ? action.payload : transaction))
         ),
       };
+    }
     case "DELETE_TRANSACTION":
       return {
         ...state,
@@ -270,12 +285,31 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
   }
 }
 
+interface ImportTransactionsResult {
+  duplicateCount: number;
+  importedCount: number;
+  keptDuplicateCount: number;
+}
+
+interface SaveTransactionOptions {
+  allowDuplicate?: boolean;
+}
+
+interface ImportTransactionsOptions {
+  allowDuplicateIds?: string[];
+}
+
 const FinanceContext = createContext<
   | {
-      importTransactions: (transactions: Transaction[]) => Promise<void>;
+      addTransaction: (transaction: Transaction, options?: SaveTransactionOptions) => void;
+      importTransactions: (
+        transactions: Transaction[],
+        options?: ImportTransactionsOptions
+      ) => Promise<ImportTransactionsResult>;
       isReady: boolean;
       state: FinanceState;
       dispatch: React.Dispatch<FinanceAction>;
+      updateTransaction: (transaction: Transaction, options?: SaveTransactionOptions) => void;
     }
   | undefined
 >(undefined);
@@ -365,20 +399,87 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [authReady, isConfigured, user?.id]);
 
-  const importTransactions = async (transactions: Transaction[]) => {
-    if (transactions.length === 0) {
+  const addTransaction = (transaction: Transaction, options?: SaveTransactionOptions) => {
+    const duplicate = findDuplicateTransaction(transaction, state.transactions);
+
+    if (duplicate && !options?.allowDuplicate) {
+      throw new Error(buildDuplicateTransactionMessage(duplicate));
+    }
+
+    if (options?.allowDuplicate) {
+      dispatch({
+        type: "SET_TRANSACTIONS",
+        payload: sortTransactionsByDate([...state.transactions, transaction]),
+      });
       return;
+    }
+
+    dispatch({ type: "ADD_TRANSACTION", payload: transaction });
+  };
+
+  const updateTransaction = (transaction: Transaction, options?: SaveTransactionOptions) => {
+    const duplicate = findDuplicateTransaction(transaction, state.transactions, { ignoreId: transaction.id });
+
+    if (duplicate && !options?.allowDuplicate) {
+      throw new Error(buildDuplicateTransactionMessage(duplicate));
+    }
+
+    if (options?.allowDuplicate) {
+      dispatch({
+        type: "SET_TRANSACTIONS",
+        payload: sortTransactionsByDate(
+          state.transactions.map((currentTransaction) =>
+            currentTransaction.id === transaction.id ? transaction : currentTransaction
+          )
+        ),
+      });
+      return;
+    }
+
+    dispatch({ type: "UPDATE_TRANSACTION", payload: transaction });
+  };
+
+  const importTransactions = async (
+    transactions: Transaction[],
+    options?: ImportTransactionsOptions
+  ) => {
+    if (transactions.length === 0) {
+      return {
+        duplicateCount: 0,
+        importedCount: 0,
+        keptDuplicateCount: 0,
+      };
+    }
+
+    const { accepted, duplicates } = partitionTransactionsByDuplicates(transactions, state.transactions);
+    const allowedDuplicateIds = new Set(options?.allowDuplicateIds ?? []);
+    const keptDuplicates = duplicates
+      .filter((duplicate) => allowedDuplicateIds.has(duplicate.transaction.id))
+      .map((duplicate) => duplicate.transaction);
+    const ignoredDuplicates = duplicates.filter((duplicate) => !allowedDuplicateIds.has(duplicate.transaction.id));
+    const transactionsToPersist = [...accepted, ...keptDuplicates];
+
+    if (transactionsToPersist.length === 0) {
+      return {
+        duplicateCount: ignoredDuplicates.length,
+        importedCount: 0,
+        keptDuplicateCount: keptDuplicates.length,
+      };
     }
 
     const nextState = {
       ...state,
-      transactions: mergeTransactions(state.transactions, transactions),
+      transactions: mergeTransactions(state.transactions, transactionsToPersist),
     };
 
     dispatch({ type: "SET_TRANSACTIONS", payload: nextState.transactions });
 
     if (!hasHydratedRef.current) {
-      return;
+      return {
+        duplicateCount: ignoredDuplicates.length,
+        importedCount: transactionsToPersist.length,
+        keptDuplicateCount: keptDuplicates.length,
+      };
     }
 
     try {
@@ -387,6 +488,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       console.error("Falha ao sincronizar importacao com o Supabase", error);
       throw error;
     }
+
+    return {
+      duplicateCount: ignoredDuplicates.length,
+      importedCount: transactionsToPersist.length,
+      keptDuplicateCount: keptDuplicates.length,
+    };
   };
 
   useEffect(() => {
@@ -422,7 +529,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [isConfigured, state, user?.id]);
 
   return (
-    <FinanceContext.Provider value={{ importTransactions, isReady, state, dispatch }}>
+    <FinanceContext.Provider
+      value={{ addTransaction, importTransactions, isReady, state, dispatch, updateTransaction }}
+    >
       {children}
     </FinanceContext.Provider>
   );

@@ -7,6 +7,7 @@ import React, { useMemo, useState } from "react";
 import { Check, Edit2, Plus, Search, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useFinance } from "../features/finance/FinanceContext";
+import { DuplicateTransactionMatch, findDuplicateTransaction } from "../lib/transactionDuplicates";
 import {
   Transaction,
   TransactionStatus,
@@ -54,13 +55,16 @@ function createDefaultFormData(): Partial<Transaction> {
 }
 
 export default function Transactions() {
-  const { state, dispatch } = useFinance();
+  const { addTransaction, state, dispatch, updateTransaction } = useFinance();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<TransactionType | "todos">("todos");
   const [filterSub, setFilterSub] = useState<TransactionSubcategory | "todos">("todos");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState<Partial<Transaction>>(createDefaultFormData);
+  const [formError, setFormError] = useState("");
+  const [duplicateReview, setDuplicateReview] = useState<DuplicateTransactionMatch | null>(null);
+  const [pendingTransaction, setPendingTransaction] = useState<Transaction | null>(null);
 
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((transaction) => {
@@ -77,6 +81,36 @@ export default function Transactions() {
   const resetForm = () => {
     setEditingTransaction(null);
     setFormData(createDefaultFormData());
+    setFormError("");
+    setDuplicateReview(null);
+    setPendingTransaction(null);
+  };
+
+  const updateForm = (patch: Partial<Transaction>) => {
+    if (formError) {
+      setFormError("");
+    }
+
+    if (duplicateReview) {
+      setDuplicateReview(null);
+      setPendingTransaction(null);
+    }
+
+    setFormData((current) => ({ ...current, ...patch }));
+  };
+
+  const getCurrentDuplicate = (transaction: Transaction) =>
+    findDuplicateTransaction(transaction, state.transactions, {
+      ignoreId: editingTransaction?.id,
+    });
+
+  const persistTransaction = (transaction: Transaction, allowDuplicate = false) => {
+    if (editingTransaction) {
+      updateTransaction(transaction, { allowDuplicate });
+      return;
+    }
+
+    addTransaction(transaction, { allowDuplicate });
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -93,19 +127,46 @@ export default function Transactions() {
       amount,
     };
 
-    if (editingTransaction) {
-      dispatch({ type: "UPDATE_TRANSACTION", payload: transaction });
-    } else {
-      dispatch({ type: "ADD_TRANSACTION", payload: transaction });
+    const duplicate = getCurrentDuplicate(transaction);
+
+    if (duplicate) {
+      setDuplicateReview(duplicate);
+      setPendingTransaction(transaction);
+      setFormError("");
+      return;
     }
 
-    setIsModalOpen(false);
-    resetForm();
+    try {
+      persistTransaction(transaction);
+      setIsModalOpen(false);
+      resetForm();
+    } catch (caughtError) {
+      setFormError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel salvar o lancamento agora."
+      );
+    }
+  };
+
+  const confirmDuplicateSave = () => {
+    if (!pendingTransaction) {
+      return;
+    }
+
+    try {
+      persistTransaction(pendingTransaction, true);
+      setIsModalOpen(false);
+      resetForm();
+    } catch (caughtError) {
+      setFormError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel salvar o lancamento agora."
+      );
+    }
   };
 
   const openEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setFormData(transaction);
+    setFormError("");
     setIsModalOpen(true);
   };
 
@@ -294,7 +355,7 @@ export default function Transactions() {
                       type="text"
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white focus:border-brand-green"
                       value={formData.description ?? ""}
-                      onChange={(event) => setFormData({ ...formData, description: event.target.value })}
+                      onChange={(event) => updateForm({ description: event.target.value })}
                     />
                   </div>
 
@@ -307,8 +368,7 @@ export default function Transactions() {
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 font-mono text-white focus:border-brand-green"
                       value={formData.amount ?? ""}
                       onChange={(event) =>
-                        setFormData({
-                          ...formData,
+                        updateForm({
                           amount: event.target.value === "" ? undefined : Number(event.target.value),
                         })
                       }
@@ -323,7 +383,7 @@ export default function Transactions() {
                       placeholder="DD/MM/YYYY"
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 font-mono text-white focus:border-brand-green"
                       value={formData.date ?? ""}
-                      onChange={(event) => setFormData({ ...formData, date: event.target.value })}
+                      onChange={(event) => updateForm({ date: event.target.value })}
                     />
                   </div>
 
@@ -333,7 +393,7 @@ export default function Transactions() {
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white"
                       value={formData.type}
                       onChange={(event) =>
-                        setFormData({ ...formData, type: event.target.value as TransactionType })
+                        updateForm({ type: event.target.value as TransactionType })
                       }
                     >
                       <option value={TransactionType.EXPENSE}>Saida (-)</option>
@@ -347,8 +407,7 @@ export default function Transactions() {
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white"
                       value={formData.subcategory}
                       onChange={(event) =>
-                        setFormData({
-                          ...formData,
+                        updateForm({
                           subcategory: event.target.value as TransactionSubcategory,
                         })
                       }
@@ -364,7 +423,7 @@ export default function Transactions() {
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white"
                       value={formData.status}
                       onChange={(event) =>
-                        setFormData({ ...formData, status: event.target.value as TransactionStatus })
+                        updateForm({ status: event.target.value as TransactionStatus })
                       }
                     >
                       <option value={TransactionStatus.PENDING}>Pendente</option>
@@ -380,14 +439,16 @@ export default function Transactions() {
                       type="text"
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white focus:border-brand-green"
                       value={formData.category ?? ""}
-                      onChange={(event) => setFormData({ ...formData, category: event.target.value })}
+                      onChange={(event) => updateForm({ category: event.target.value })}
                     />
                   </div>
 
                   <div>
                     <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Recorrente?</label>
-                    <div
-                      onClick={() => setFormData({ ...formData, recurring: !formData.recurring })}
+                    <button
+                      type="button"
+                      onClick={() => updateForm({ recurring: !formData.recurring })}
+                      aria-pressed={Boolean(formData.recurring)}
                       className={cn(
                         "flex w-full cursor-pointer items-center justify-between rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white",
                         formData.recurring && "border-brand-green bg-brand-green/5"
@@ -395,9 +456,68 @@ export default function Transactions() {
                     >
                       <span>{formData.recurring ? "Sim" : "Nao"}</span>
                       {formData.recurring && <Check size={16} className="text-brand-green" />}
-                    </div>
+                    </button>
                   </div>
                 </div>
+
+                {formError && (
+                  <div className="rounded-lg border border-brand-red/20 bg-brand-red/10 px-4 py-3 text-sm text-brand-red">
+                    {formError}
+                  </div>
+                )}
+
+                {duplicateReview && pendingTransaction && (
+                  <div className="space-y-4 rounded-lg border border-brand-yellow/30 bg-brand-yellow/5 px-4 py-4">
+                    <div>
+                      <p className="text-sm font-semibold text-brand-yellow">Possivel duplicado no mesmo mes</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Encontramos um lancamento muito parecido no periodo. Revise abaixo e escolha se quer manter os dois.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-brand-border bg-slate-900/70 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Ja existente</p>
+                        <p className="mt-2 text-sm font-medium text-white">{duplicateReview.duplicateOf.description}</p>
+                        <p className="mt-1 text-xs text-slate-400">{duplicateReview.duplicateOf.date}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {duplicateReview.duplicateOf.subcategory} - {duplicateReview.duplicateOf.category}
+                        </p>
+                        <p className="mt-3 font-mono text-sm text-brand-yellow">
+                          {formatCurrency(duplicateReview.duplicateOf.amount)}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-brand-green/20 bg-brand-green/5 p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-green">Novo lancamento</p>
+                        <p className="mt-2 text-sm font-medium text-white">{pendingTransaction.description}</p>
+                        <p className="mt-1 text-xs text-slate-400">{pendingTransaction.date}</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {pendingTransaction.subcategory} - {pendingTransaction.category}
+                        </p>
+                        <p className="mt-3 font-mono text-sm text-brand-green">
+                          {formatCurrency(pendingTransaction.amount)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDuplicateReview(null);
+                          setPendingTransaction(null);
+                        }}
+                        className="btn-secondary flex-1"
+                      >
+                        Revisar Dados
+                      </button>
+                      <button type="button" onClick={confirmDuplicateSave} className="btn-primary flex-1">
+                        Manter Mesmo Assim
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-6">
                   <button
