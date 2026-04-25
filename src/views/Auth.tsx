@@ -28,7 +28,7 @@ export default function Auth() {
 
     try {
       if (!isConfigured) {
-        throw new Error("Configure o Supabase antes de usar o login.");
+        throw new Error("O acesso nao esta disponivel no momento.");
       }
 
       if (mode === "register") {
@@ -41,7 +41,7 @@ export default function Auth() {
         }
 
         await register(form.name, form.email, form.password);
-        setNotice("Conta criada. Se a confirmacao por email estiver ativa no Supabase, confira sua caixa de entrada.");
+        setNotice("Conta criada. Se houver confirmacao por email, confira sua caixa de entrada.");
       } else {
         await login(form.email, form.password);
       }
@@ -62,14 +62,14 @@ export default function Auth() {
               <div className="space-y-6">
                 <div className="inline-flex items-center gap-3 rounded-full border border-brand-green/20 bg-brand-green/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-green">
                   <Fingerprint size={14} />
-                  Nexus Access
+                  Nexus Finance
                 </div>
                 <div className="max-w-md space-y-4">
                   <h1 className="text-4xl font-semibold leading-tight text-white">
-                    Login pronto para producao com Vercel e Supabase.
+                    Seu controle financeiro em um so lugar.
                   </h1>
                   <p className="text-base leading-7 text-slate-300">
-                    Experiencia pensada para mobile: foco no toque, leitura limpa e sessao persistida via Supabase Auth.
+                    Acompanhe entradas, saidas e metas com praticidade em uma experiencia simples e feita para o dia a dia.
                   </p>
                 </div>
               </div>
@@ -78,18 +78,18 @@ export default function Auth() {
                 {[
                   {
                     icon: ShieldCheck,
-                    title: "Sessao real de producao",
-                    text: "Autenticacao persistida pelo Supabase, pronta para o deploy.",
+                    title: "Acesso seguro",
+                    text: "Entre com tranquilidade e continue de onde parou.",
                   },
                   {
                     icon: Smartphone,
-                    title: "Fluxo mobile-first",
-                    text: "Campos amplos, interacao rapida e header enxuto para celular.",
+                    title: "Feito para o celular",
+                    text: "Campos amplos e navegacao simples para usar em qualquer momento.",
                   },
                   {
                     icon: LockKeyhole,
-                    title: "Facil de publicar",
-                    text: "Vite na Vercel com variaveis e redirects preparados.",
+                    title: "Tudo organizado",
+                    text: "Visual limpo para acompanhar sua rotina financeira sem complicacao.",
                   },
                 ].map((item) => (
                   <div key={item.title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
@@ -113,21 +113,21 @@ export default function Auth() {
               <div className="mb-8 space-y-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-brand-border bg-slate-900/80 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 lg:hidden">
                   <Fingerprint size={13} className="text-brand-green" />
-                  Nexus Access
+                  Nexus Finance
                 </div>
                 <h2 className="text-3xl font-semibold text-white">
                   {mode === "register" ? "Criar conta" : "Entrar"}
                 </h2>
                 <p className="text-sm leading-6 text-slate-400">
                   {mode === "register"
-                    ? "Crie o acesso principal do app usando Supabase Auth."
+                    ? "Crie sua conta para comecar a organizar sua vida financeira."
                     : "Entre com seu email e senha para abrir o painel financeiro."}
                 </p>
               </div>
 
               {!isConfigured && (
                 <div className="mb-5 rounded-2xl border border-brand-yellow/30 bg-brand-yellow/5 px-4 py-4 text-sm text-brand-yellow">
-                  Falta configurar <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> para ativar o login.
+                  O acesso esta temporariamente indisponivel. Tente novamente em instantes.
                 </div>
               )}
 
@@ -213,9 +213,9 @@ export default function Auth() {
               </form>
 
               <div className="mt-6 rounded-2xl border border-brand-border bg-slate-950/70 p-4 text-sm text-slate-400">
-                <p className="font-semibold text-white">Configuracao recomendada para producao</p>
+                <p className="font-semibold text-white">Acesso protegido</p>
                 <p className="mt-1 leading-6">
-                  Use email/senha com confirmacao por email no Supabase e configure a URL final da Vercel nos redirect URLs.
+                  Use seu email e senha para entrar com seguranca e acompanhar suas movimentacoes.
                 </p>
               </div>
 

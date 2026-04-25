@@ -33,8 +33,9 @@ VITE_GEMINI_API_KEY=
 2. Em `Project Settings > API`, copie:
    - `Project URL` para `VITE_SUPABASE_URL`
    - `anon public key` para `VITE_SUPABASE_ANON_KEY`
-3. Em `Authentication > Providers`, deixe Email habilitado.
-4. Em `Authentication > URL Configuration`, configure:
+3. Abra o `SQL Editor` e rode o script `supabase/schema.sql`.
+4. Em `Authentication > Providers`, deixe Email habilitado.
+5. Em `Authentication > URL Configuration`, configure:
    - `Site URL`: sua URL final da Vercel
    - `Redirect URLs`:
      - `http://localhost:3000`
@@ -57,11 +58,13 @@ O arquivo `vercel.json` ja foi incluido para fallback de SPA.
 
 - Login e cadastro por email/senha usando Supabase Auth
 - Sessao persistida pelo SDK do Supabase
+- Dados financeiros sincronizados por usuario no Supabase
+- Fallback local para migracao inicial e resiliencia offline
 - UI mobile-first para uso principal em celular
 
 ## Proximos passos recomendados
 
 - Configurar recuperacao de senha
-- Criar perfis de usuario no banco
-- Sincronizar dados financeiros por usuario no Supabase
-- Aplicar Row Level Security antes de publicar dados multiusuario
+- Criar fluxo de confirmacao e redefinicao de senha
+- Adicionar auditoria ou `updated_by` se houver operacao em equipe
+- Evoluir importacao para batch insert server-side se o volume crescer

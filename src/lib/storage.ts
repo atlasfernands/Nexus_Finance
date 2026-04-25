@@ -4,20 +4,25 @@
  */
 
 export function loadState<T>(key: string, defaultValue: T): T {
+  const loaded = loadOptionalState<T>(key);
+  return loaded ?? defaultValue;
+}
+
+export function loadOptionalState<T>(key: string): T | null {
   if (typeof window === "undefined") {
-    return defaultValue;
+    return null;
   }
 
   const saved = window.localStorage.getItem(key);
   if (!saved) {
-    return defaultValue;
+    return null;
   }
 
   try {
     return JSON.parse(saved) as T;
   } catch (error) {
     console.warn("Failed to parse persistent state", error);
-    return defaultValue;
+    return null;
   }
 }
 

@@ -67,6 +67,7 @@ export interface FinanceState {
 }
 
 export type FinanceAction =
+  | { type: "HYDRATE_STATE"; payload: FinanceState }
   | { type: "ADD_TRANSACTION"; payload: Transaction }
   | { type: "UPDATE_TRANSACTION"; payload: Transaction }
   | { type: "DELETE_TRANSACTION"; payload: string }

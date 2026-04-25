@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { ReactNode, createContext, useContext, useEffect, useReducer } from "react";
+import React, { ReactNode, createContext, useContext, useEffect, useReducer, useRef, useState } from "react";
 import {
   FinanceAction,
   FinanceState,
@@ -14,10 +14,13 @@ import {
   TransactionSubcategory,
   TransactionType,
 } from "../../types";
-import { loadState, saveState } from "../../lib/storage";
+import { loadOptionalState, saveState } from "../../lib/storage";
 import { compareDateStrings, generateId } from "../../lib/utils";
+import { useAuth } from "../auth/AuthContext";
+import { fetchRemoteFinanceState, saveRemoteFinanceState } from "../../services/financeSync";
 
-const STORAGE_KEY = "controle-financeiro-integrado:v1";
+const STORAGE_KEY = "controle-financeiro-integrado:v2";
+const LEGACY_STORAGE_KEY = "controle-financeiro-integrado:v1";
 
 function createCurrentReportingPeriod(): ReportingPeriod {
   const now = new Date();
@@ -51,6 +54,10 @@ function createInitialState(): FinanceState {
 }
 
 const initialState: FinanceState = createInitialState();
+
+function getStorageKey(userId?: string | null) {
+  return userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY;
+}
 
 function normalizeTransactionType(value: unknown): TransactionType {
   const normalized = String(value ?? "").toLowerCase();
@@ -208,6 +215,8 @@ function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
 
 function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
   switch (action.type) {
+    case "HYDRATE_STATE":
+      return normalizeFinanceState(action.payload, createInitialState());
     case "ADD_TRANSACTION":
       return { ...state, transactions: sortTransactionsByDate([...state.transactions, action.payload]) };
     case "UPDATE_TRANSACTION":
@@ -250,6 +259,7 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
 
 const FinanceContext = createContext<
   | {
+      isReady: boolean;
       state: FinanceState;
       dispatch: React.Dispatch<FinanceAction>;
     }
@@ -257,15 +267,108 @@ const FinanceContext = createContext<
 >(undefined);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(financeReducer, initialState, (initial) =>
-    normalizeFinanceState(loadState(STORAGE_KEY, initial), initial)
-  );
+  const { isConfigured, isReady: authReady, user } = useAuth();
+  const [state, dispatch] = useReducer(financeReducer, initialState);
+  const [isReady, setIsReady] = useState(false);
+  const hasHydratedRef = useRef(false);
+  const lastSavedSnapshotRef = useRef("");
 
   useEffect(() => {
-    saveState(STORAGE_KEY, state);
-  }, [state]);
+    if (!authReady) {
+      return;
+    }
 
-  return <FinanceContext.Provider value={{ state, dispatch }}>{children}</FinanceContext.Provider>;
+    let cancelled = false;
+
+    const hydrateState = async () => {
+      setIsReady(false);
+
+      const fallbackState = createInitialState();
+      const userScopedStorageKey = getStorageKey(user?.id);
+      const cachedUserState = loadOptionalState<FinanceState>(userScopedStorageKey);
+      const cachedLegacyState = loadOptionalState<FinanceState>(LEGACY_STORAGE_KEY);
+      const localState = normalizeFinanceState(
+        user ? cachedUserState ?? cachedLegacyState : cachedLegacyState,
+        fallbackState
+      );
+
+      if (!isConfigured || !user) {
+        if (!cancelled) {
+          dispatch({ type: "HYDRATE_STATE", payload: localState });
+          hasHydratedRef.current = true;
+          setIsReady(true);
+        }
+        return;
+      }
+
+      try {
+        const remoteState = await fetchRemoteFinanceState(user.id, fallbackState.reportingPeriod);
+        if (cancelled) {
+          return;
+        }
+
+        const nextState = remoteState ? normalizeFinanceState(remoteState, fallbackState) : localState;
+        dispatch({ type: "HYDRATE_STATE", payload: nextState });
+        saveState(userScopedStorageKey, nextState);
+
+        if (!remoteState) {
+          await saveRemoteFinanceState(user.id, nextState);
+        }
+      } catch (error) {
+        console.error("Falha ao carregar dados financeiros do Supabase", error);
+        if (!cancelled) {
+          dispatch({ type: "HYDRATE_STATE", payload: localState });
+        }
+      } finally {
+        if (!cancelled) {
+          hasHydratedRef.current = true;
+          setIsReady(true);
+        }
+      }
+    };
+
+    hydrateState();
+
+    return () => {
+      cancelled = true;
+      hasHydratedRef.current = false;
+      lastSavedSnapshotRef.current = "";
+    };
+  }, [authReady, isConfigured, user?.id]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) {
+      return;
+    }
+
+    const storageKey = getStorageKey(user?.id);
+    saveState(storageKey, state);
+
+    if (!isConfigured || !user) {
+      return;
+    }
+
+    const snapshot = JSON.stringify(state);
+    if (snapshot === lastSavedSnapshotRef.current) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      saveRemoteFinanceState(user.id, state)
+        .then(() => {
+          lastSavedSnapshotRef.current = snapshot;
+        })
+        .catch((error) => {
+          console.error("Falha ao salvar dados financeiros no Supabase", error);
+        });
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isConfigured, state, user?.id]);
+
+  return <FinanceContext.Provider value={{ isReady, state, dispatch }}>{children}</FinanceContext.Provider>;
 }
 
 export function useFinance() {
