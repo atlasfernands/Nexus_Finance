@@ -2,7 +2,27 @@
   <title>Nexus Finance</title>
   <rect width="512" height="512" rx="112" fill="#00FF9D" />
   <path
-    fill="#000000"
-    d="M144 120h78l146 205V120h78v272h-78L222 187v205h-78V120Z"
+    d="M168 356V156"
+    fill="none"
+    stroke="#000000"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="56"
+  />
+  <path
+    d="M168 156L344 356"
+    fill="none"
+    stroke="#000000"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="56"
+  />
+  <path
+    d="M344 356V156"
+    fill="none"
+    stroke="#000000"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="56"
   />
 </svg>
