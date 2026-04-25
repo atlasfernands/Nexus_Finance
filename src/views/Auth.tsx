@@ -12,19 +12,25 @@ function createEmptyForm() {
 }
 
 export default function Auth() {
-  const { hasAccount, login, register } = useAuth();
-  const [mode, setMode] = useState<"login" | "register">(hasAccount ? "login" : "register");
+  const { isConfigured, login, register } = useAuth();
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [form, setForm] = useState(createEmptyForm);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setNotice("");
 
     try {
+      if (!isConfigured) {
+        throw new Error("Configure o Supabase antes de usar o login.");
+      }
+
       if (mode === "register") {
         if (form.name.trim().length < 3) {
           throw new Error("Informe um nome com pelo menos 3 caracteres.");
@@ -35,6 +41,7 @@ export default function Auth() {
         }
 
         await register(form.name, form.email, form.password);
+        setNotice("Conta criada. Se a confirmacao por email estiver ativa no Supabase, confira sua caixa de entrada.");
       } else {
         await login(form.email, form.password);
       }
@@ -59,10 +66,10 @@ export default function Auth() {
                 </div>
                 <div className="max-w-md space-y-4">
                   <h1 className="text-4xl font-semibold leading-tight text-white">
-                    Acesso protegido para cuidar do caixa sem perder o ritmo.
+                    Login pronto para producao com Vercel e Supabase.
                   </h1>
                   <p className="text-base leading-7 text-slate-300">
-                    Fluxo pensado para mobile: rápido no toque, legível em telas menores e pronto para virar login real em produção.
+                    Experiencia pensada para mobile: foco no toque, leitura limpa e sessao persistida via Supabase Auth.
                   </p>
                 </div>
               </div>
@@ -71,18 +78,18 @@ export default function Auth() {
                 {[
                   {
                     icon: ShieldCheck,
-                    title: "Sessão persistida no aparelho",
-                    text: "Entrou uma vez, volta mais rápido no dia a dia.",
+                    title: "Sessao real de producao",
+                    text: "Autenticacao persistida pelo Supabase, pronta para o deploy.",
                   },
                   {
                     icon: Smartphone,
-                    title: "Mobile-first de verdade",
-                    text: "Campos grandes, foco claro e ações fáceis com o polegar.",
+                    title: "Fluxo mobile-first",
+                    text: "Campos amplos, interacao rapida e header enxuto para celular.",
                   },
                   {
                     icon: LockKeyhole,
-                    title: "Base pronta para produção",
-                    text: "Estrutura preparada para plugar Supabase ou Clerk depois.",
+                    title: "Facil de publicar",
+                    text: "Vite na Vercel com variaveis e redirects preparados.",
                   },
                 ].map((item) => (
                   <div key={item.title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
@@ -109,14 +116,20 @@ export default function Auth() {
                   Nexus Access
                 </div>
                 <h2 className="text-3xl font-semibold text-white">
-                  {mode === "register" ? "Criar acesso" : "Entrar"}
+                  {mode === "register" ? "Criar conta" : "Entrar"}
                 </h2>
                 <p className="text-sm leading-6 text-slate-400">
                   {mode === "register"
-                    ? "Cadastre o primeiro acesso do app neste aparelho."
-                    : "Use seu email e senha para abrir o painel financeiro."}
+                    ? "Crie o acesso principal do app usando Supabase Auth."
+                    : "Entre com seu email e senha para abrir o painel financeiro."}
                 </p>
               </div>
+
+              {!isConfigured && (
+                <div className="mb-5 rounded-2xl border border-brand-yellow/30 bg-brand-yellow/5 px-4 py-4 text-sm text-brand-yellow">
+                  Falta configurar <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> para ativar o login.
+                </div>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "register" && (
@@ -181,26 +194,28 @@ export default function Auth() {
                   </div>
                 )}
 
+                {notice && (
+                  <div className="rounded-2xl border border-brand-green/30 bg-brand-green/5 px-4 py-3 text-sm text-brand-green">
+                    {notice}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !isConfigured}
                   className={cn(
                     "flex h-14 w-full items-center justify-center rounded-2xl bg-brand-green px-5 text-base font-semibold text-black transition-all",
-                    loading ? "cursor-wait opacity-70" : "hover:brightness-110 active:scale-[0.99]"
+                    loading || !isConfigured ? "cursor-not-allowed opacity-70" : "hover:brightness-110 active:scale-[0.99]"
                   )}
                 >
-                  {loading ? "Validando acesso..." : mode === "register" ? "Criar e entrar" : "Entrar no Nexus"}
+                  {loading ? "Validando acesso..." : mode === "register" ? "Criar conta" : "Entrar no Nexus"}
                 </button>
               </form>
 
               <div className="mt-6 rounded-2xl border border-brand-border bg-slate-950/70 p-4 text-sm text-slate-400">
-                <p className="font-semibold text-white">
-                  {mode === "register" ? "Primeiro acesso neste aparelho" : "Quer redefinir o acesso?"}
-                </p>
+                <p className="font-semibold text-white">Configuracao recomendada para producao</p>
                 <p className="mt-1 leading-6">
-                  {mode === "register"
-                    ? "Essa versão já segura o acesso localmente e está pronta para trocar por autenticação real quando subirmos para produção."
-                    : "Na etapa seguinte eu posso ligar este fluxo a um provedor real de autenticação para produção."}
+                  Use email/senha com confirmacao por email no Supabase e configure a URL final da Vercel nos redirect URLs.
                 </p>
               </div>
 
@@ -208,12 +223,13 @@ export default function Auth() {
                 type="button"
                 onClick={() => {
                   setError("");
+                  setNotice("");
                   setForm(createEmptyForm());
                   setMode((current) => (current === "register" ? "login" : "register"));
                 }}
                 className="mt-5 text-sm font-medium text-brand-green transition-colors hover:text-white"
               >
-                {mode === "register" ? "Ja tenho acesso" : "Criar primeiro acesso neste aparelho"}
+                {mode === "register" ? "Ja tenho conta" : "Criar uma conta"}
               </button>
             </div>
           </section>

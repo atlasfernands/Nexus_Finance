@@ -1,219 +1,67 @@
-# 💻 Nexus Finance
+# Nexus Finance
 
-> Plataforma de controle financeiro inteligente (Casa + MEI) com análise avançada e insights automatizados.
+Painel financeiro web para casa + MEI, com dashboard, importacao de CSV/XLSX, relatorios, alertas de caixa e autenticacao.
 
----
+## Stack
 
-## 🚀 Visão Geral
+- React 19 + Vite
+- Tailwind CSS
+- Recharts
+- Supabase Auth
+- Vercel para deploy
 
-O **Nexus Finance** é uma aplicação web moderna que funciona como uma verdadeira **sala de operações financeira**, permitindo controle total, análise estratégica e tomada de decisão baseada em dados.
-
-Diferente de planilhas comuns, o sistema oferece:
-
-* 📊 Visualização clara e profissional dos dados
-* 🧠 Análises inteligentes com IA
-* 📈 Projeções financeiras
-* 🏪 Gestão integrada (Casa + Negócio)
-
----
-
-## 🎯 Objetivo
-
-Criar um sistema que não apenas registre dados financeiros, mas que:
-
-* Identifique padrões
-* Antecipe problemas
-* Sugira decisões
-* Aumente a consciência financeira
-
----
-
-## ⚙️ Tecnologias Utilizadas
-
-* ⚛️ React 19 + Vite
-* 🎨 Tailwind CSS (Dark Mode)
-* 📊 Recharts
-* 🧠 Integração com IA (Claude Sonnet)
-* 🧩 useReducer (estado global)
-* 💾 localStorage (persistência)
-* 🧪 Vitest (testes)
-
----
-
-## 🧩 Funcionalidades
-
-### 📊 Dashboard Inteligente
-
-* Saldo realizado e projetado
-* Entradas vs saídas
-* Comparação mensal
-* Termômetro de risco financeiro
-* Alertas automáticos
-
----
-
-### 📋 Gestão de Lançamentos
-
-* CRUD completo
-* Filtros avançados
-* Busca em tempo real
-* Edição inline
-* Status (pago, pendente, etc.)
-
----
-
-### 📥 Importação Inteligente
-
-* Suporte a CSV e XLSX
-* Parser automático
-* Correção de encoding
-* Detecção de categorias e tipos
-* Preview antes de importar
-
----
-
-### 📤 Exportação
-
-* CSV (filtrado)
-* JSON (backup completo)
-
----
-
-### 📈 Relatórios
-
-* Fluxo de caixa
-* Análise por categoria
-* Comparação Casa vs Loja
-* Projeções futuras
-
----
-
-### 🏪 Módulo Loja
-
-* Controle de vendas
-* Margem e metas
-* Fornecedores e parcelas
-* Planejamento de estoque
-
----
-
-### 🏠 Módulo Casa
-
-* Controle de custos
-* Fixos vs variáveis
-* Contas recorrentes
-* Alertas de gasto excessivo
-
----
-
-### 🤖 Inteligência Artificial
-
-* Diagnóstico financeiro (score)
-* Sugestões de economia
-* Estratégias de crescimento
-* Alertas de risco
-* Perguntas livres
-
----
-
-## 🧮 Regras Financeiras
-
-* **Saldo Realizado** = apenas transações concluídas
-* **Saldo Projetado** = inclui pendentes
-* Pendentes **não entram** no saldo realizado
-* Meta da loja baseada em percentual de desempenho
-
----
-
-## 🎨 Design
-
-* 🌙 Dark Mode obrigatório
-* 📊 Estilo: Trading Desk
-* 🟢 Verde = positivo
-* 🔴 Vermelho = negativo
-* 🟡 Amarelo = alerta
-* 📱 Responsivo (mobile, tablet, desktop)
-
----
-
-## 🚀 Performance
-
-* Lazy loading
-* Code splitting
-* Otimização de renderização
-* Estrutura escalável
-
----
-
-## 🧪 Testes
-
-* Cálculo de saldo
-* Parser de importação
-* Filtros combinados
-* Fluxo de dados
-
----
-
-## 🔒 Segurança
-
-* Uso de variáveis de ambiente (.env)
-* Proteção de chaves de API
-* Configuração segura para produção
-
----
-
-## ▶️ Como Rodar o Projeto
+## Rodando localmente
 
 ```bash
-# Clonar repositório
-git clone https://github.com/atlasfernands/Nexus_Finance
-
-# Entrar na pasta
-cd Nexus_Finance
-
-# Instalar dependências
 npm install
-
-# Rodar ambiente de desenvolvimento
 npm run dev
 ```
 
----
+Crie um `.env` baseado em `.env.example`.
 
-## 📌 Roadmap
+## Variaveis de ambiente
 
-* [ ] Backend com autenticação
-* [ ] Sincronização em nuvem
-* [ ] Notificações inteligentes
-* [ ] App mobile
-* [ ] Multi-usuário (empresa)
+```bash
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_GEMINI_API_KEY=
+```
 
----
+## Preparacao para Supabase
 
-## 🤝 Contribuição
+1. Crie um projeto no Supabase.
+2. Em `Project Settings > API`, copie:
+   - `Project URL` para `VITE_SUPABASE_URL`
+   - `anon public key` para `VITE_SUPABASE_ANON_KEY`
+3. Em `Authentication > Providers`, deixe Email habilitado.
+4. Em `Authentication > URL Configuration`, configure:
+   - `Site URL`: sua URL final da Vercel
+   - `Redirect URLs`:
+     - `http://localhost:3000`
+     - `https://seu-projeto.vercel.app`
+     - se usar previews, adicione uma regra de preview adequada
 
-Sinta-se livre para contribuir com melhorias, sugestões ou correções.
+## Preparacao para Vercel
 
----
+1. Importe este repositorio na Vercel.
+2. Framework preset: `Vite`.
+3. Adicione as variaveis:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_GEMINI_API_KEY` se usar IA
+4. Deploy.
 
-## 📄 Licença
+O arquivo `vercel.json` ja foi incluido para fallback de SPA.
 
-Este projeto está sob a licença MIT.
+## Auth atual
 
----
+- Login e cadastro por email/senha usando Supabase Auth
+- Sessao persistida pelo SDK do Supabase
+- UI mobile-first para uso principal em celular
 
-## 👤 Autor
+## Proximos passos recomendados
 
-Desenvolvido por **Atlas Fernands**
-
----
-
-## 🔥 Visão Final
-
-O Nexus Finance não é apenas um app financeiro.
-
-É um sistema de inteligência para quem quer:
-
-* controle real
-* decisões melhores
-* crescimento consistente
+- Configurar recuperacao de senha
+- Criar perfis de usuario no banco
+- Sincronizar dados financeiros por usuario no Supabase
+- Aplicar Row Level Security antes de publicar dados multiusuario

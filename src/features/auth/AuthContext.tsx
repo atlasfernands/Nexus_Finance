@@ -1,109 +1,124 @@
-import React, { ReactNode, createContext, useContext, useMemo, useState } from "react";
-import { loadState, saveState } from "../../lib/storage";
-
-const AUTH_ACCOUNT_KEY = "nexus-finance:auth-account";
-const AUTH_SESSION_KEY = "nexus-finance:auth-session";
-
-interface AuthAccount {
-  createdAt: string;
-  email: string;
-  name: string;
-  passwordHash: string;
-}
-
-interface AuthSession {
-  email: string;
-  loginAt: string;
-  name: string;
-}
+import React, { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { isSupabaseConfigured, supabase } from "../../lib/supabase";
 
 interface AuthContextValue {
-  account: AuthAccount | null;
   hasAccount: boolean;
+  isConfigured: boolean;
   isReady: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  session: AuthSession | null;
+  session: Session | null;
+  user: User | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+function getAuthClient() {
+  if (!supabase) {
+    throw new Error("Supabase ainda nao foi configurado neste projeto.");
+  }
 
-async function hashPassword(password: string) {
-  const encoder = new TextEncoder();
-  const passwordBuffer = encoder.encode(password);
-  const digest = await crypto.subtle.digest("SHA-256", passwordBuffer);
-  const digestArray = Array.from(new Uint8Array(digest));
-
-  return digestArray.map((value) => value.toString(16).padStart(2, "0")).join("");
+  return supabase;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [account, setAccount] = useState<AuthAccount | null>(() => loadState<AuthAccount | null>(AUTH_ACCOUNT_KEY, null));
-  const [session, setSession] = useState<AuthSession | null>(() => loadState<AuthSession | null>(AUTH_SESSION_KEY, null));
+  const [session, setSession] = useState<Session | null>(null);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setIsReady(true);
+      return;
+    }
+
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) {
+        return;
+      }
+
+      if (error) {
+        console.error("Falha ao carregar sessao do Supabase", error);
+      }
+
+      setSession(data.session ?? null);
+      setIsReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setIsReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const register = async (name: string, email: string, password: string) => {
-    const normalizedEmail = normalizeEmail(email);
-    const nextAccount: AuthAccount = {
-      createdAt: new Date().toISOString(),
-      email: normalizedEmail,
-      name: name.trim(),
-      passwordHash: await hashPassword(password),
-    };
-    const nextSession: AuthSession = {
-      email: normalizedEmail,
-      loginAt: new Date().toISOString(),
-      name: name.trim(),
-    };
+    const client = getAuthClient();
+    const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+    const { data, error } = await client.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: {
+        data: {
+          full_name: name.trim(),
+        },
+        emailRedirectTo: redirectTo,
+      },
+    });
 
-    setAccount(nextAccount);
-    setSession(nextSession);
-    saveState(AUTH_ACCOUNT_KEY, nextAccount);
-    saveState(AUTH_SESSION_KEY, nextSession);
+    if (error) {
+      throw error;
+    }
+
+    setSession(data.session ?? null);
   };
 
   const login = async (email: string, password: string) => {
-    if (!account) {
-      throw new Error("Nenhum acesso cadastrado ainda.");
+    const client = getAuthClient();
+    const { data, error } = await client.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (error) {
+      throw error;
     }
 
-    const normalizedEmail = normalizeEmail(email);
-    const passwordHash = await hashPassword(password);
-
-    if (normalizedEmail !== account.email || passwordHash !== account.passwordHash) {
-      throw new Error("Email ou senha incorretos.");
-    }
-
-    const nextSession: AuthSession = {
-      email: account.email,
-      loginAt: new Date().toISOString(),
-      name: account.name,
-    };
-
-    setSession(nextSession);
-    saveState(AUTH_SESSION_KEY, nextSession);
+    setSession(data.session);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const client = getAuthClient();
+    const { error } = await client.auth.signOut();
+
+    if (error) {
+      throw error;
+    }
+
     setSession(null);
-    saveState<AuthSession | null>(AUTH_SESSION_KEY, null);
   };
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      account,
-      hasAccount: Boolean(account),
-      isReady: true,
+      hasAccount: Boolean(session?.user),
+      isConfigured: isSupabaseConfigured,
+      isReady,
       login,
       logout,
       register,
       session,
+      user: session?.user ?? null,
     }),
-    [account, session]
+    [isReady, session]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

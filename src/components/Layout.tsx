@@ -76,7 +76,7 @@ export default function Layout({
   const [systemStatus, setSystemStatus] = useState<"online" | "offline" | "checking">("checking");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { state } = useFinance();
-  const { logout, session } = useAuth();
+  const { logout, session, user } = useAuth();
   const { upcomingPendingExpenses } = useFinanceStats();
 
   useEffect(() => {
@@ -129,6 +129,12 @@ export default function Layout({
   const sidebarCollapsed = collapsed && !mobileMenuOpen;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  const displayName =
+    user?.user_metadata?.full_name ??
+    user?.email?.split("@")[0] ??
+    "Usuario";
+  const displayEmail = user?.email ?? session?.user?.email ?? "";
 
   const notifications = upcomingPendingExpenses.map((transaction) => {
     const parsedDate = parseDateString(transaction.date);
@@ -349,16 +355,18 @@ export default function Layout({
             </div>
             <div className="hidden items-center gap-3 rounded-full border border-brand-border bg-brand-card px-3 py-1.5 text-xs text-slate-300 md:flex">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-green/10 font-semibold text-brand-green">
-                {session?.name?.slice(0, 1).toUpperCase() ?? "N"}
+                {displayName.slice(0, 1).toUpperCase()}
               </div>
               <div className="max-w-[140px]">
-                <p className="truncate font-semibold text-white">{session?.name ?? "Usuario"}</p>
-                <p className="truncate text-[10px] uppercase tracking-widest text-slate-500">{session?.email}</p>
+                <p className="truncate font-semibold text-white">{displayName}</p>
+                <p className="truncate text-[10px] uppercase tracking-widest text-slate-500">{displayEmail}</p>
               </div>
             </div>
             <button
               type="button"
-              onClick={logout}
+              onClick={() => {
+                void logout();
+              }}
               className="rounded-full border border-brand-border bg-brand-card px-3 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-brand-red/40 hover:text-white"
             >
               Sair

@@ -18,7 +18,7 @@ import AIInsights from "./views/AIInsights";
 import Settings from "./views/Settings";
 
 function AppContent() {
-  const { isReady, session } = useAuth();
+  const { isConfigured, isReady, session } = useAuth();
   const [currentView, setView] = useState<View>("dashboard");
 
   const viewComponents = {
@@ -38,7 +38,7 @@ function AppContent() {
     return <div className="flex min-h-screen items-center justify-center text-brand-green">Carregando acesso...</div>;
   }
 
-  if (!session) {
+  if (!isConfigured || !session) {
     return <Auth />;
   }
 
