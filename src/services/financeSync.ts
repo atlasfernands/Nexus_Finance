@@ -34,6 +34,8 @@ type FinanceTransactionRow = {
   subcategory: TransactionSubcategory;
   transaction_type: TransactionType;
   amount: number;
+  running_balance: number | null;
+  source_order: number | null;
   status: TransactionStatus;
   recurring: boolean;
   notes: string | null;
@@ -68,8 +70,10 @@ function mapTransactionRowToState(row: FinanceTransactionRow): Transaction {
     subcategory: row.subcategory,
     type: row.transaction_type,
     amount: row.amount,
+    runningBalance: row.running_balance ?? undefined,
     status: row.status,
     recurring: row.recurring,
+    sourceOrder: row.source_order ?? undefined,
     notes: row.notes ?? undefined,
     tags: row.tags ?? undefined,
   };
@@ -85,6 +89,8 @@ function mapTransactionToRow(userId: string, transaction: Transaction): FinanceT
     subcategory: transaction.subcategory,
     transaction_type: transaction.type,
     amount: transaction.amount,
+    running_balance: transaction.runningBalance ?? null,
+    source_order: transaction.sourceOrder ?? null,
     status: transaction.status,
     recurring: transaction.recurring,
     notes: transaction.notes ?? null,
@@ -134,6 +140,7 @@ export async function fetchRemoteFinanceState(
       .from("finance_transactions")
       .select("*")
       .eq("user_id", userId)
+      .order("source_order", { ascending: true, nullsFirst: false })
       .order("transaction_date", { ascending: true })
       .returns<FinanceTransactionRow[]>(),
   ]);

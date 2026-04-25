@@ -27,6 +27,8 @@ create table if not exists public.finance_transactions (
   subcategory text not null check (subcategory in ('Casa', 'Loja')),
   transaction_type text not null check (transaction_type in ('entrada', 'saÃ­da')),
   amount numeric(12,2) not null default 0,
+  running_balance numeric(12,2),
+  source_order integer,
   status text not null check (status in ('realizado', 'pendente', 'pago', 'cancelado')),
   recurring boolean not null default false,
   notes text,

@@ -125,6 +125,8 @@ function normalizeReportingYear(value: unknown, fallback: number): number {
 
 function normalizeTransaction(raw: unknown): Transaction {
   const transaction = (raw ?? {}) as Record<string, unknown>;
+  const runningBalanceValue = transaction.runningBalance ?? transaction.saldoAcumulado;
+  const sourceOrderValue = transaction.sourceOrder ?? transaction.ordemLinha;
 
   return {
     id: normalizeString(transaction.id, generateId()),
@@ -134,8 +136,11 @@ function normalizeTransaction(raw: unknown): Transaction {
     subcategory: normalizeTransactionSubcategory(transaction.subcategory ?? transaction.subcategoria),
     type: normalizeTransactionType(transaction.type ?? transaction.tipo),
     amount: normalizeNumber(transaction.amount ?? transaction.valor, 0),
+    runningBalance:
+      runningBalanceValue === undefined ? undefined : normalizeNumber(runningBalanceValue, 0),
     status: normalizeTransactionStatus(transaction.status),
     recurring: Boolean(transaction.recurring ?? transaction.recorrente ?? false),
+    sourceOrder: sourceOrderValue === undefined ? undefined : normalizeNumber(sourceOrderValue, 0),
     notes: typeof transaction.notes === "string" ? transaction.notes : undefined,
     tags: Array.isArray(transaction.tags)
       ? transaction.tags.filter((tag): tag is string => typeof tag === "string")
@@ -203,6 +208,10 @@ function normalizeFinanceState(rawState: unknown, fallbackState: FinanceState): 
 
 function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
   return [...transactions].sort((left, right) => {
+    if (typeof left.sourceOrder === "number" && typeof right.sourceOrder === "number") {
+      return left.sourceOrder - right.sourceOrder;
+    }
+
     const dateComparison = compareDateStrings(left.date, right.date);
 
     if (dateComparison !== 0) {
@@ -211,6 +220,10 @@ function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
 
     return left.description.localeCompare(right.description, "pt-BR");
   });
+}
+
+function mergeTransactions(currentTransactions: Transaction[], nextTransactions: Transaction[]): Transaction[] {
+  return sortTransactionsByDate([...currentTransactions, ...nextTransactions]);
 }
 
 function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
@@ -259,6 +272,7 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
 
 const FinanceContext = createContext<
   | {
+      importTransactions: (transactions: Transaction[]) => Promise<void>;
       isReady: boolean;
       state: FinanceState;
       dispatch: React.Dispatch<FinanceAction>;
@@ -272,6 +286,21 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const hasHydratedRef = useRef(false);
   const lastSavedSnapshotRef = useRef("");
+
+  const persistStateImmediately = async (nextState: FinanceState) => {
+    const storageKey = getStorageKey(user?.id);
+    saveState(storageKey, nextState);
+
+    const snapshot = JSON.stringify(nextState);
+
+    if (!isConfigured || !user) {
+      lastSavedSnapshotRef.current = snapshot;
+      return;
+    }
+
+    await saveRemoteFinanceState(user.id, nextState);
+    lastSavedSnapshotRef.current = snapshot;
+  };
 
   useEffect(() => {
     if (!authReady) {
@@ -336,6 +365,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [authReady, isConfigured, user?.id]);
 
+  const importTransactions = async (transactions: Transaction[]) => {
+    if (transactions.length === 0) {
+      return;
+    }
+
+    const nextState = {
+      ...state,
+      transactions: mergeTransactions(state.transactions, transactions),
+    };
+
+    dispatch({ type: "SET_TRANSACTIONS", payload: nextState.transactions });
+
+    if (!hasHydratedRef.current) {
+      return;
+    }
+
+    try {
+      await persistStateImmediately(nextState);
+    } catch (error) {
+      console.error("Falha ao sincronizar importacao com o Supabase", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     if (!hasHydratedRef.current) {
       return;
@@ -368,7 +421,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     };
   }, [isConfigured, state, user?.id]);
 
-  return <FinanceContext.Provider value={{ isReady, state, dispatch }}>{children}</FinanceContext.Provider>;
+  return (
+    <FinanceContext.Provider value={{ importTransactions, isReady, state, dispatch }}>
+      {children}
+    </FinanceContext.Provider>
+  );
 }
 
 export function useFinance() {

@@ -3,7 +3,7 @@ import { ImportService } from "./import";
 import { TransactionStatus, TransactionType } from "../types";
 
 describe("ImportService", () => {
-  it("classifies rows with 'Saída' and values in parentheses as expenses", () => {
+  it("classifies expense rows and preserves running balance metadata", () => {
     const processData = (ImportService as any).processData.bind(ImportService);
 
     const result = processData([
@@ -11,9 +11,10 @@ describe("ImportService", () => {
         data: "01/04/2026",
         descricao: "Aluguel",
         categoria: "Moradia",
-        tipo: "Saída",
+        tipo: "Saida",
         valor: "(R$ 700,00)",
         status: "Pago",
+        saldo_acumulado: "(R$ 700,00)",
       },
     ]);
 
@@ -21,10 +22,12 @@ describe("ImportService", () => {
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0].type).toBe(TransactionType.EXPENSE);
     expect(result.transactions[0].amount).toBe(700);
+    expect(result.transactions[0].runningBalance).toBe(-700);
+    expect(result.transactions[0].sourceOrder).toBe(1);
     expect(result.transactions[0].status).toBe(TransactionStatus.PAID);
   });
 
-  it("keeps entries marked as 'Entrada' as income", () => {
+  it("keeps entries marked as income and stores positive running balance", () => {
     const processData = (ImportService as any).processData.bind(ImportService);
 
     const result = processData([
@@ -35,6 +38,7 @@ describe("ImportService", () => {
         tipo: "Entrada",
         valor: "R$ 2.084,06",
         status: "Realizado",
+        saldo_acumulado: "R$ 2.130,06",
       },
     ]);
 
@@ -42,5 +46,7 @@ describe("ImportService", () => {
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0].type).toBe(TransactionType.INCOME);
     expect(result.transactions[0].amount).toBe(2084.06);
+    expect(result.transactions[0].runningBalance).toBe(2130.06);
+    expect(result.transactions[0].sourceOrder).toBe(1);
   });
 });

@@ -10,12 +10,45 @@ import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader } from "../components/ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/Table";
 import { useFinance } from "../features/finance/FinanceContext";
-import { cn } from "../lib/utils";
+import { cn, formatCurrency } from "../lib/utils";
 import { ImportResult, ImportService } from "../services/import";
-import { TransactionType } from "../types";
+import { Transaction, TransactionStatus, TransactionType } from "../types";
+
+function formatTransactionTypeLabel(type: TransactionType) {
+  return type === TransactionType.INCOME ? "Entrada" : "Saida";
+}
+
+function formatTransactionStatusLabel(status: TransactionStatus) {
+  if (status === TransactionStatus.PAID) {
+    return "Pago";
+  }
+
+  if (status === TransactionStatus.PENDING) {
+    return "Pendente";
+  }
+
+  if (status === TransactionStatus.CANCELLED) {
+    return "Cancelado";
+  }
+
+  return "Realizado";
+}
+
+function formatSignedCurrency(value: number, isNegative: boolean) {
+  const formatted = formatCurrency(Math.abs(value));
+  return isNegative ? `(${formatted})` : formatted;
+}
+
+function getDisplayedBalance(transaction: Transaction) {
+  if (typeof transaction.runningBalance !== "number") {
+    return "-";
+  }
+
+  return formatSignedCurrency(transaction.runningBalance, transaction.runningBalance < 0);
+}
 
 export default function ImportTransactions() {
-  const { dispatch } = useFinance();
+  const { importTransactions } = useFinance();
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -38,16 +71,26 @@ export default function ImportTransactions() {
     }
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!importResult || importResult.transactions.length === 0) {
       return;
     }
 
-    importResult.transactions.forEach((transaction) =>
-      dispatch({ type: "ADD_TRANSACTION", payload: transaction })
-    );
-    setImportResult(null);
-    alert(`${importResult.transactions.length} transacoes importadas com sucesso!`);
+    setLoading(true);
+
+    try {
+      await importTransactions(importResult.transactions);
+      setImportResult(null);
+      alert(`${importResult.transactions.length} transacoes importadas com sucesso!`);
+    } catch (caughtError) {
+      alert(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Nao foi possivel salvar a importacao agora."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const removeItem = (id: string) => {
@@ -160,29 +203,40 @@ export default function ImportTransactions() {
                       <Button variant="secondary" onClick={() => setImportResult(null)}>
                         Limpar
                       </Button>
-                      <Button onClick={handleImport} className="flex items-center gap-2">
-                        <ImportIcon size={18} /> Confirmar Importacao
+                      <Button
+                        onClick={() => {
+                          void handleImport();
+                        }}
+                        className="flex items-center gap-2"
+                        disabled={loading}
+                      >
+                        <ImportIcon size={18} /> {loading ? "Salvando..." : "Confirmar Importacao"}
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
-                    <Table>
+                      <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Tipo</TableHead>
                           <TableHead>Data</TableHead>
                           <TableHead>Descricao</TableHead>
                           <TableHead>Categoria</TableHead>
+                          <TableHead>Tipo</TableHead>
                           <TableHead>Valor</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Saldo Acumulado</TableHead>
                           <TableHead>Acoes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {importResult.transactions.map((item) => (
                           <TableRow key={item.id}>
-                            <TableCell>
+                            <TableCell className="text-slate-400">{item.date}</TableCell>
+                            <TableCell className="text-white">{item.description}</TableCell>
+                            <TableCell className="text-slate-300">{item.category}</TableCell>
+                            <TableCell className="text-white">
                               <span
                                 className={cn(
                                   "rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
@@ -191,14 +245,17 @@ export default function ImportTransactions() {
                                     : "bg-brand-red/10 text-brand-red"
                                 )}
                               >
-                                {item.type}
+                                {formatTransactionTypeLabel(item.type)}
                               </span>
                             </TableCell>
-                            <TableCell className="text-slate-400">{item.date}</TableCell>
-                            <TableCell className="text-white">{item.description}</TableCell>
-                            <TableCell className="text-slate-300">{item.category}</TableCell>
-                            <TableCell className="text-white">
-                              {item.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                            <TableCell className="font-mono text-white">
+                              {formatSignedCurrency(item.amount, item.type === TransactionType.EXPENSE)}
+                            </TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatTransactionStatusLabel(item.status)}
+                            </TableCell>
+                            <TableCell className="font-mono text-slate-300">
+                              {getDisplayedBalance(item)}
                             </TableCell>
                             <TableCell className="text-right">
                               <button

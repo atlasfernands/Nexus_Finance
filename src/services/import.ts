@@ -14,6 +14,7 @@ export interface ColumnMapping {
   valor: string;
   data: string;
   categoria?: string;
+  saldoAcumulado?: string;
   tipo?: string;
   subcategoria?: string;
   status?: string;
@@ -25,6 +26,7 @@ export class ImportService {
     valor: "valor",
     data: "data",
     categoria: "categoria",
+    saldoAcumulado: "saldo_acumulado",
     tipo: "tipo",
     subcategoria: "subcategoria",
     status: "status",
@@ -35,6 +37,7 @@ export class ImportService {
     valor: ["valor", "value", "amount", "preco", "price", "total", "montante", "valor (r$)"],
     data: ["data", "date", "dt", "data_compra", "purchase_date"],
     categoria: ["categoria", "category", "tipo", "type", "classificacao"],
+    saldoAcumulado: ["saldo_acumulado", "saldo acumulado", "running_balance", "balance", "saldo"],
     tipo: ["tipo", "type", "operacao", "operation", "movimento", "tipo\n(entrada/saida)"],
     subcategoria: ["subcategoria", "subcategory", "sistema", "system"],
     status: ["status", "estado", "state", "situacao"],
@@ -232,6 +235,7 @@ export class ImportService {
     const valorRaw = this.extractNumericValue(row, mapping.valor);
     const dataRaw = this.extractStringValue(row, mapping.data);
     const categoria = this.extractStringValue(row, mapping.categoria) || "Importado";
+    const saldoAcumuladoRaw = this.extractNumericValue(row, mapping.saldoAcumulado ?? "saldo_acumulado");
     const tipoRaw = this.extractStringValue(row, mapping.tipo);
     const subcategoriaRaw = this.extractStringValue(row, mapping.subcategoria);
     const statusRaw = this.extractStringValue(row, mapping.status);
@@ -313,8 +317,10 @@ export class ImportService {
       subcategory: subcategoria,
       type: tipo,
       amount: Math.abs(valorRaw),
+      runningBalance: saldoAcumuladoRaw ?? undefined,
       status,
       recurring: false,
+      sourceOrder: rowNumber,
     };
   }
 

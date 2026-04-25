@@ -29,7 +29,9 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   status: TransactionStatus;
+  runningBalance?: number;
   recurring: boolean;
+  sourceOrder?: number;
   notes?: string;
   tags?: string[];
 }

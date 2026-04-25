@@ -15,6 +15,31 @@ import {
 } from "../types";
 import { cn, formatCurrency, generateId } from "../lib/utils";
 
+function formatTransactionTypeLabel(type: TransactionType) {
+  return type === TransactionType.INCOME ? "Entrada" : "Saida";
+}
+
+function formatTransactionStatusLabel(status: TransactionStatus) {
+  if (status === TransactionStatus.PAID) {
+    return "Pago";
+  }
+
+  if (status === TransactionStatus.PENDING) {
+    return "Pendente";
+  }
+
+  if (status === TransactionStatus.CANCELLED) {
+    return "Cancelado";
+  }
+
+  return "Realizado";
+}
+
+function formatSignedCurrency(value: number, isNegative: boolean) {
+  const formatted = formatCurrency(Math.abs(value));
+  return isNegative ? `(${formatted})` : formatted;
+}
+
 function createDefaultFormData(): Partial<Transaction> {
   return {
     description: "",
@@ -139,24 +164,48 @@ export default function Transactions() {
 
       <div className="trading-card overflow-hidden">
         <div className="overflow-x-auto pb-4">
-          <table className="min-w-[700px] w-full border-collapse text-left text-[12px]">
+          <table className="min-w-[980px] w-full border-collapse text-left text-[12px]">
             <thead>
               <tr className="border-b border-brand-border text-slate-500 font-bold uppercase tracking-wider">
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2">Descricao</th>
-                <th className="hidden px-4 py-2 md:table-cell">Sistema</th>
                 <th className="px-4 py-2">Data</th>
-                <th className="px-4 py-2 text-right">Valor</th>
+                <th className="px-4 py-2">Descricao</th>
+                <th className="px-4 py-2">Categoria</th>
+                <th className="px-4 py-2">Tipo</th>
+                <th className="px-4 py-2 text-right">Valor (R$)</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2 text-right">Saldo Acumulado (R$)</th>
                 <th className="px-4 py-2 text-center">Acoes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border/50">
               {filteredTransactions.map((transaction) => (
                 <tr key={transaction.id} className="group transition-colors hover:bg-slate-800/30">
+                  <td className="px-4 py-3 font-mono text-slate-400">{transaction.date}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-white">{transaction.description}</span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">{transaction.category}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "rounded px-2 py-0.5 text-[10px] font-bold uppercase",
+                        transaction.type === TransactionType.INCOME
+                          ? "bg-brand-green/10 text-brand-green"
+                          : "bg-brand-red/10 text-brand-red"
+                      )}
+                    >
+                      {formatTransactionTypeLabel(transaction.type)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono font-bold">
+                    <span className={transaction.type === TransactionType.INCOME ? "text-brand-green" : "text-white"}>
+                      {formatSignedCurrency(transaction.amount, transaction.type === TransactionType.EXPENSE)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <div
                       className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-bold",
+                        "inline-flex rounded px-2 py-0.5 text-[10px] font-bold",
                         transaction.status === TransactionStatus.PAID ||
                           transaction.status === TransactionStatus.COMPLETED
                           ? "bg-brand-green/10 text-brand-green"
@@ -165,37 +214,13 @@ export default function Transactions() {
                             : "bg-brand-red/10 text-brand-red"
                       )}
                     >
-                      {transaction.status.toUpperCase()}
+                      {formatTransactionStatusLabel(transaction.status)}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-white">{transaction.description}</span>
-                      <span className="text-[10px] uppercase text-slate-500">{transaction.category}</span>
-                    </div>
-                  </td>
-                  <td className="hidden px-4 py-3 md:table-cell">
-                    <span
-                      className={cn(
-                        "rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter",
-                        transaction.subcategory === TransactionSubcategory.STORE
-                          ? "bg-[#2D3E50] text-[#7EB6FF]"
-                          : "bg-[#3E2D50] text-[#D1AFFF]"
-                      )}
-                    >
-                      {transaction.subcategory}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-slate-400">{transaction.date}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold">
-                    <div
-                      className={cn(
-                        "flex items-center justify-end gap-1",
-                        transaction.type === TransactionType.INCOME ? "text-brand-green" : "text-white"
-                      )}
-                    >
-                      {transaction.type === TransactionType.INCOME ? "+" : "-"} {formatCurrency(transaction.amount)}
-                    </div>
+                  <td className="px-4 py-3 text-right font-mono text-slate-300">
+                    {typeof transaction.runningBalance === "number"
+                      ? formatSignedCurrency(transaction.runningBalance, transaction.runningBalance < 0)
+                      : "-"}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
