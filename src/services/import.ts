@@ -123,6 +123,15 @@ export class ImportService {
     return sampleRow.map((_, index) => `col_${index + 1}`);
   }
 
+  private static normalizeComparisonText(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   private static parseExcel(file: File): Promise<any[]> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -242,7 +251,7 @@ export class ImportService {
 
     let tipo: TransactionType = TransactionType.EXPENSE;
     if (tipoRaw) {
-      const tipoLower = tipoRaw.toLowerCase();
+      const tipoLower = this.normalizeComparisonText(tipoRaw);
       if (
         tipoLower.includes("entrada") ||
         tipoLower.includes("income") ||
@@ -268,12 +277,12 @@ export class ImportService {
 
     let subcategoria: TransactionSubcategory = TransactionSubcategory.HOME;
     if (subcategoriaRaw) {
-      const subLower = subcategoriaRaw.toLowerCase();
+      const subLower = this.normalizeComparisonText(subcategoriaRaw);
       if (subLower.includes("loja") || subLower.includes("store") || subLower.includes("mei")) {
         subcategoria = TransactionSubcategory.STORE;
       }
     } else if (categoria) {
-      const catLower = categoria.toLowerCase();
+      const catLower = this.normalizeComparisonText(categoria);
       if (catLower.includes("loja - vendas") || catLower.includes("loja - estoque")) {
         subcategoria = TransactionSubcategory.STORE;
       } else if (catLower.includes("moradia") || catLower.includes("aluguel")) {
@@ -283,7 +292,7 @@ export class ImportService {
 
     let status: Transaction["status"] = TransactionStatus.COMPLETED;
     if (statusRaw) {
-      const statusLower = statusRaw.toLowerCase();
+      const statusLower = this.normalizeComparisonText(statusRaw);
       if (statusLower.includes("pendente") || statusLower.includes("pending") || statusLower.includes("nao pago")) {
         status = TransactionStatus.PENDING;
       } else if (
@@ -323,7 +332,10 @@ export class ImportService {
       return null;
     }
 
-    let cleaned = String(value).trim();
+    const rawValue = String(value).trim();
+    const isNegativeByParentheses = rawValue.includes("(") && rawValue.includes(")");
+
+    let cleaned = rawValue;
     cleaned = cleaned.replace(/[()]/g, "").replace(/R\$\s*/g, "").replace(/\s+/g, "");
     cleaned = cleaned.replace(/[^\d.,-]/g, "");
 
@@ -347,7 +359,11 @@ export class ImportService {
     cleaned = cleaned.replace(/[^\d.\-]/g, "");
 
     const parsed = Number.parseFloat(cleaned);
-    return Number.isNaN(parsed) ? null : parsed;
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+
+    return isNegativeByParentheses ? -Math.abs(parsed) : parsed;
   }
 
   private static normalizeDate(dateStr: string): string | null {
