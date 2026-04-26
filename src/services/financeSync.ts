@@ -23,6 +23,8 @@ type FinanceProfileRow = {
   reporting_granularity: ReportingGranularity | null;
   ai_last_analysis: string | null;
   ai_history: Array<{ date: string; content: string }> | null;
+  category_memory?: string[] | null;
+  description_memory?: string[] | null;
 };
 
 type FinanceTransactionRow = {
@@ -132,7 +134,15 @@ function isMissingRelationError(error: unknown) {
 
 function isMetadataColumnMismatch(error: unknown) {
   const message = getErrorMessage(error).toLowerCase();
-  return ["running_balance", "source_order", "notes", "tags"].some(
+  return ["running_balance", "source_order", "notes", "tags", "category_memory", "description_memory"].some(
+    (column) => message.includes(column) && (message.includes("column") || message.includes("schema cache"))
+  );
+}
+
+function isProfileMemoryColumnMismatch(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return ["category_memory", "description_memory"].some(
     (column) => message.includes(column) && (message.includes("column") || message.includes("schema cache"))
   );
 }
@@ -237,6 +247,10 @@ function mapProfileToState(
       year: normalizeNumber(profile?.reporting_year, fallbackPeriod.year),
       granularity: normalizeGranularity(profile?.reporting_granularity, fallbackPeriod.granularity),
     },
+    transactionMemory: {
+      categories: Array.isArray(profile?.category_memory) ? profile.category_memory : [],
+      descriptions: Array.isArray(profile?.description_memory) ? profile.description_memory : [],
+    },
     aiInsights: {
       lastAnalysis: profile?.ai_last_analysis ?? undefined,
       history: Array.isArray(profile?.ai_history) ? profile.ai_history : [],
@@ -328,14 +342,31 @@ export async function saveRemoteFinanceState(userId: string, state: FinanceState
     reporting_granularity: state.reportingPeriod.granularity,
     ai_last_analysis: state.aiInsights.lastAnalysis ?? null,
     ai_history: state.aiInsights.history,
+    category_memory: state.transactionMemory.categories,
+    description_memory: state.transactionMemory.descriptions,
   };
 
-  const { error: profileError } = await supabase.from("finance_profiles").upsert(profilePayload, {
+  const profileUpsert = await supabase.from("finance_profiles").upsert(profilePayload, {
     onConflict: "user_id",
   });
 
-  if (profileError) {
-    throw createFinanceSyncError("profile_write", profileError);
+  if (profileUpsert.error) {
+    if (isProfileMemoryColumnMismatch(profileUpsert.error)) {
+      const {
+        category_memory: _categoryMemory,
+        description_memory: _descriptionMemory,
+        ...legacyProfilePayload
+      } = profilePayload;
+      const { error: legacyProfileError } = await supabase.from("finance_profiles").upsert(legacyProfilePayload, {
+        onConflict: "user_id",
+      });
+
+      if (legacyProfileError) {
+        throw createFinanceSyncError("profile_write", legacyProfileError);
+      }
+    } else {
+      throw createFinanceSyncError("profile_write", profileUpsert.error);
+    }
   }
 
   const transactionIds = state.transactions.map((transaction) => transaction.id);

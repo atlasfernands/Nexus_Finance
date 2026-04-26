@@ -54,6 +54,20 @@ function createDefaultFormData(): Partial<Transaction> {
   };
 }
 
+function getMemoryKey(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function hasMemoryMatch(items: string[], value: string) {
+  const key = getMemoryKey(value);
+
+  return items.some((item) => getMemoryKey(item) === key);
+}
+
 export default function Transactions() {
   const { addTransaction, state, dispatch, updateTransaction } = useFinance();
   const [searchTerm, setSearchTerm] = useState("");
@@ -65,6 +79,13 @@ export default function Transactions() {
   const [formError, setFormError] = useState("");
   const [duplicateReview, setDuplicateReview] = useState<DuplicateTransactionMatch | null>(null);
   const [pendingTransaction, setPendingTransaction] = useState<Transaction | null>(null);
+  const [categoryMode, setCategoryMode] = useState<"select" | "create">("select");
+
+  const categoryOptions = useMemo(() => state.transactionMemory.categories, [state.transactionMemory.categories]);
+  const descriptionOptions = useMemo(
+    () => state.transactionMemory.descriptions,
+    [state.transactionMemory.descriptions]
+  );
 
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((transaction) => {
@@ -84,6 +105,7 @@ export default function Transactions() {
     setFormError("");
     setDuplicateReview(null);
     setPendingTransaction(null);
+    setCategoryMode("select");
   };
 
   const updateForm = (patch: Partial<Transaction>) => {
@@ -166,6 +188,7 @@ export default function Transactions() {
   const openEdit = (transaction: Transaction) => {
     setEditingTransaction(transaction);
     setFormData(transaction);
+    setCategoryMode(hasMemoryMatch(categoryOptions, transaction.category) ? "select" : "create");
     setFormError("");
     setIsModalOpen(true);
   };
@@ -353,10 +376,21 @@ export default function Transactions() {
                     <input
                       required
                       type="text"
+                      list="nexus-description-memory"
                       className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white focus:border-brand-green"
                       value={formData.description ?? ""}
                       onChange={(event) => updateForm({ description: event.target.value })}
                     />
+                    <datalist id="nexus-description-memory">
+                      {descriptionOptions.map((description) => (
+                        <option key={description} value={description} />
+                      ))}
+                    </datalist>
+                    {descriptionOptions.length > 0 && (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Comece a digitar para reutilizar uma descricao ja feita.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -435,12 +469,58 @@ export default function Transactions() {
 
                   <div className="col-span-2">
                     <label className="mb-1 block text-xs font-bold uppercase text-slate-500">Categoria</label>
-                    <input
-                      type="text"
-                      className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white focus:border-brand-green"
-                      value={formData.category ?? ""}
-                      onChange={(event) => updateForm({ category: event.target.value })}
-                    />
+                    <div className="space-y-2">
+                      <select
+                        className="w-full rounded-lg border border-brand-border bg-slate-900 px-4 py-2 text-white focus:border-brand-green"
+                        value={categoryMode === "create" ? "__new__" : formData.category ?? "Outros"}
+                        onChange={(event) => {
+                          if (event.target.value === "__new__") {
+                            setCategoryMode("create");
+                            updateForm({ category: "" });
+                            return;
+                          }
+
+                          setCategoryMode("select");
+                          updateForm({ category: event.target.value });
+                        }}
+                      >
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                        <option value="__new__">+ Criar nova categoria</option>
+                      </select>
+
+                      {categoryMode === "create" && (
+                        <div className="rounded-lg border border-brand-green/20 bg-brand-green/5 p-3">
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <input
+                              required
+                              type="text"
+                              autoFocus
+                              placeholder="Nome da nova categoria"
+                              className="w-full rounded-lg border border-brand-border bg-slate-950 px-4 py-2 text-white focus:border-brand-green"
+                              value={formData.category ?? ""}
+                              onChange={(event) => updateForm({ category: event.target.value })}
+                            />
+                            <button
+                              type="button"
+                              className="btn-secondary whitespace-nowrap"
+                              onClick={() => {
+                                setCategoryMode("select");
+                                updateForm({ category: categoryOptions[0] ?? "Outros" });
+                              }}
+                            >
+                              Selecionar existente
+                            </button>
+                          </div>
+                          <p className="mt-2 text-[11px] text-slate-400">
+                            Ao salvar, essa categoria fica disponivel nos proximos lancamentos da conta.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div>

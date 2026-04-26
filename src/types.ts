@@ -49,6 +49,11 @@ export interface UserPreferences {
   animations: boolean;
 }
 
+export interface TransactionMemory {
+  categories: string[];
+  descriptions: string[];
+}
+
 export type ReportingGranularity = "month" | "year";
 
 export interface ReportingPeriod {
@@ -61,6 +66,7 @@ export interface FinanceState {
   transactions: Transaction[];
   profile: UserProfile;
   preferences: UserPreferences;
+  transactionMemory: TransactionMemory;
   reportingPeriod: ReportingPeriod;
   aiInsights: {
     lastAnalysis?: string;

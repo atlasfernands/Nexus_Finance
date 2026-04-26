@@ -10,6 +10,7 @@ import {
   ReportingGranularity,
   ReportingPeriod,
   Transaction,
+  TransactionMemory,
   TransactionStatus,
   TransactionSubcategory,
   TransactionType,
@@ -26,6 +27,8 @@ import { fetchRemoteFinanceState, saveRemoteFinanceState } from "../../services/
 
 const STORAGE_KEY = "controle-financeiro-integrado:v2";
 const LEGACY_STORAGE_KEY = "controle-financeiro-integrado:v1";
+const MAX_CATEGORY_MEMORY = 100;
+const MAX_DESCRIPTION_MEMORY = 200;
 
 function createCurrentReportingPeriod(): ReportingPeriod {
   const now = new Date();
@@ -50,6 +53,10 @@ function createInitialState(): FinanceState {
       includePendingInBalance: false,
       enableAlerts: true,
       animations: true,
+    },
+    transactionMemory: {
+      categories: ["Outros"],
+      descriptions: [],
     },
     reportingPeriod: createCurrentReportingPeriod(),
     aiInsights: {
@@ -111,6 +118,100 @@ function normalizeString(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim() !== "" ? value : fallback;
 }
 
+function cleanMemoryItem(value: unknown): string {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function getMemoryKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function dedupeMemoryItems(values: unknown[], limit: number): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  values.forEach((value) => {
+    const cleaned = cleanMemoryItem(value);
+    const key = getMemoryKey(cleaned);
+
+    if (!cleaned || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    result.push(cleaned);
+  });
+
+  return result.slice(0, limit);
+}
+
+function createMemoryFromTransactions(transactions: Transaction[]): TransactionMemory {
+  return {
+    categories: dedupeMemoryItems(
+      ["Outros", ...transactions.map((transaction) => transaction.category)].sort((left, right) =>
+        String(left).localeCompare(String(right), "pt-BR")
+      ),
+      MAX_CATEGORY_MEMORY
+    ),
+    descriptions: dedupeMemoryItems(
+      [...transactions].reverse().map((transaction) => transaction.description),
+      MAX_DESCRIPTION_MEMORY
+    ),
+  };
+}
+
+function normalizeTransactionMemory(
+  value: unknown,
+  fallback: TransactionMemory,
+  transactions: Transaction[]
+): TransactionMemory {
+  const memory = (value ?? {}) as Partial<Record<keyof TransactionMemory, unknown>>;
+  const derivedMemory = createMemoryFromTransactions(transactions);
+
+  return {
+    categories: dedupeMemoryItems(
+      [
+        ...((Array.isArray(memory.categories) ? memory.categories : fallback.categories) ?? []),
+        ...derivedMemory.categories,
+      ].sort((left, right) => String(left).localeCompare(String(right), "pt-BR")),
+      MAX_CATEGORY_MEMORY
+    ),
+    descriptions: dedupeMemoryItems(
+      [
+        ...((Array.isArray(memory.descriptions) ? memory.descriptions : fallback.descriptions) ?? []),
+        ...derivedMemory.descriptions,
+      ],
+      MAX_DESCRIPTION_MEMORY
+    ),
+  };
+}
+
+function rememberMemoryItem(items: string[], value: unknown, limit: number, sortItems = false): string[] {
+  const cleaned = cleanMemoryItem(value);
+
+  if (!cleaned) {
+    return items;
+  }
+
+  const withoutDuplicate = items.filter((item) => getMemoryKey(item) !== getMemoryKey(cleaned));
+  const nextItems = sortItems ? [...withoutDuplicate, cleaned].sort((left, right) => left.localeCompare(right, "pt-BR")) : [cleaned, ...withoutDuplicate];
+
+  return nextItems.slice(0, limit);
+}
+
+function rememberTransactions(memory: TransactionMemory, transactions: Transaction[]): TransactionMemory {
+  return transactions.reduce(
+    (currentMemory, transaction) => ({
+      categories: rememberMemoryItem(currentMemory.categories, transaction.category, MAX_CATEGORY_MEMORY, true),
+      descriptions: rememberMemoryItem(currentMemory.descriptions, transaction.description, MAX_DESCRIPTION_MEMORY),
+    }),
+    memory
+  );
+}
+
 function normalizeReportingGranularity(
   value: unknown,
   fallback: ReportingGranularity
@@ -159,11 +260,12 @@ function normalizeFinanceState(rawState: unknown, fallbackState: FinanceState): 
   const preferences = (state.preferences ?? {}) as Record<string, unknown>;
   const reportingPeriod = (state.reportingPeriod ?? {}) as Record<string, unknown>;
   const aiInsights = (state.aiInsights ?? {}) as Record<string, unknown>;
+  const transactions = Array.isArray(state.transactions)
+    ? state.transactions.map(normalizeTransaction)
+    : fallbackState.transactions;
 
   return {
-    transactions: Array.isArray(state.transactions)
-      ? state.transactions.map(normalizeTransaction)
-      : fallbackState.transactions,
+    transactions,
     profile: {
       name: normalizeString(profile.name ?? profile.nome, fallbackState.profile.name),
       store: normalizeString(profile.store ?? profile.loja, fallbackState.profile.store),
@@ -185,6 +287,11 @@ function normalizeFinanceState(rawState: unknown, fallbackState: FinanceState): 
         preferences.animations ?? preferences.animacoes ?? fallbackState.preferences.animations
       ),
     },
+    transactionMemory: normalizeTransactionMemory(
+      state.transactionMemory ?? state.memoriaLancamentos,
+      fallbackState.transactionMemory,
+      transactions
+    ),
     reportingPeriod: {
       month: normalizeReportingMonth(reportingPeriod.month, fallbackState.reportingPeriod.month),
       year: normalizeReportingYear(reportingPeriod.year, fallbackState.reportingPeriod.year),
@@ -240,7 +347,11 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
         return state;
       }
 
-      return { ...state, transactions: sortTransactionsByDate([...state.transactions, action.payload]) };
+      return {
+        ...state,
+        transactionMemory: rememberTransactions(state.transactionMemory, [action.payload]),
+        transactions: sortTransactionsByDate([...state.transactions, action.payload]),
+      };
     }
     case "UPDATE_TRANSACTION": {
       if (findDuplicateTransaction(action.payload, state.transactions, { ignoreId: action.payload.id })) {
@@ -249,6 +360,7 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
 
       return {
         ...state,
+        transactionMemory: rememberTransactions(state.transactionMemory, [action.payload]),
         transactions: sortTransactionsByDate(
           state.transactions.map((transaction) => (transaction.id === action.payload.id ? action.payload : transaction))
         ),
@@ -260,7 +372,11 @@ function financeReducer(state: FinanceState, action: FinanceAction): FinanceStat
         transactions: state.transactions.filter((transaction) => transaction.id !== action.payload),
       };
     case "SET_TRANSACTIONS":
-      return { ...state, transactions: sortTransactionsByDate(action.payload) };
+      return {
+        ...state,
+        transactionMemory: rememberTransactions(state.transactionMemory, action.payload),
+        transactions: sortTransactionsByDate(action.payload),
+      };
     case "UPDATE_PROFILE":
       return { ...state, profile: { ...state.profile, ...action.payload } };
     case "UPDATE_PREFERENCES":
@@ -469,6 +585,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const nextState = {
       ...state,
+      transactionMemory: rememberTransactions(state.transactionMemory, transactionsToPersist),
       transactions: mergeTransactions(state.transactions, transactionsToPersist),
     };
 

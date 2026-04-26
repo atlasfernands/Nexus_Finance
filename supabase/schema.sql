@@ -14,6 +14,8 @@ create table if not exists public.finance_profiles (
   reporting_granularity text not null default 'month' check (reporting_granularity in ('month', 'year')),
   ai_last_analysis text,
   ai_history jsonb not null default '[]'::jsonb,
+  category_memory jsonb not null default '[]'::jsonb,
+  description_memory jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
