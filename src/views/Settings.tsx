@@ -4,8 +4,9 @@
  */
 
 import React from "react";
-import { Bell, Database, Download, RotateCcw, Save, Shield, User, Zap } from "lucide-react";
+import { Bell, Database, Download, ExternalLink, RotateCcw, Save, Shield, Smartphone, User, Zap } from "lucide-react";
 import { useFinance } from "../features/finance/FinanceContext";
+import { hasAndroidApkRelease, mobileRelease } from "../lib/mobileRelease";
 import { cn } from "../lib/utils";
 
 const preferenceItems = [
@@ -133,6 +134,65 @@ export default function Settings() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="trading-card border-brand-green/20">
+        <div className="mb-8 flex items-center gap-3 border-b border-brand-border pb-4">
+          <Smartphone className="text-brand-green" />
+          <h3 className="text-xl font-bold text-white">App Mobile</h3>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-brand-border bg-slate-950/50 p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="font-bold text-white">Android APK</h4>
+              <span className="rounded-full border border-brand-yellow/40 bg-brand-yellow/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-yellow">
+                Em preparacao
+              </span>
+            </div>
+            <p className="mb-5 text-sm leading-relaxed text-slate-400">
+              O app Android nativo esta sendo preparado com Capacitor. Quando houver um APK assinado, este card vira o ponto
+              oficial de download.
+            </p>
+            {hasAndroidApkRelease ? (
+              <a
+                href={mobileRelease.android.apkUrl}
+                className="btn-primary flex w-full items-center justify-center gap-2"
+              >
+                <Download size={18} /> Baixar APK Android
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-brand-border bg-slate-900 px-4 py-2 font-semibold text-slate-500"
+              >
+                <Download size={18} /> APK em preparacao
+              </button>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-brand-border bg-slate-950/50 p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="font-bold text-white">iOS e PWA</h4>
+              <span className="rounded-full border border-brand-green/40 bg-brand-green/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-green">
+                Gratis agora
+              </span>
+            </div>
+            <p className="mb-5 text-sm leading-relaxed text-slate-400">
+              No iPhone, a rota gratis e instalar pelo Safari usando Adicionar a Tela de Inicio. A App Store fica para a fase
+              paga com conta Apple Developer.
+            </p>
+            <a
+              href={mobileRelease.pwaGuideUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary flex w-full items-center justify-center gap-2"
+            >
+              <ExternalLink size={18} /> Ver guia de instalacao
+            </a>
+          </div>
         </div>
       </section>
 

@@ -1,11 +1,15 @@
 {
   "name": "Nexus Finance",
   "short_name": "Nexus",
+  "id": "/",
   "description": "Painel financeiro pessoal e MEI do Nexus Finance.",
   "theme_color": "#00FF9D",
   "background_color": "#0A0B0D",
   "display": "standalone",
   "start_url": "/",
+  "scope": "/",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",

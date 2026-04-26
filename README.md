@@ -61,6 +61,22 @@ O arquivo `vercel.json` ja foi incluido para fallback de SPA.
 - O Analytics nao coleta dados em desenvolvimento local; os dados aparecem apos deploy na Vercel.
 - Como este painel usa navegacao interna em SPA, o Web Analytics mede visitas e carregamentos da aplicacao. Se voce quiser medir mudancas entre modulos internos como eventos separados, o proximo passo e instrumentar eventos customizados ou migrar as views para rotas reais.
 
+## Mobile
+
+- O projeto esta preparado para PWA e Android nativo via Capacitor.
+- A documentacao de implementacao e release fica em `docs/mobile`.
+- Para sincronizar o build web com o Android:
+
+```bash
+npm run mobile:sync
+```
+
+- Para abrir o projeto no Android Studio:
+
+```bash
+npm run android:open
+```
+
 ## Auth atual
 
 - Login e cadastro por email/senha usando Supabase Auth
