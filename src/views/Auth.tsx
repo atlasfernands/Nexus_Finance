@@ -36,8 +36,8 @@ export default function Auth() {
           throw new Error("Informe um nome com pelo menos 3 caracteres.");
         }
 
-        if (form.password.length < 6) {
-          throw new Error("A senha precisa ter pelo menos 6 caracteres.");
+        if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
+          throw new Error("A senha precisa ter pelo menos 8 caracteres, incluindo letras e numeros.");
         }
 
         await register(form.name, form.email, form.password);
@@ -174,7 +174,7 @@ export default function Auth() {
                       autoComplete={mode === "register" ? "new-password" : "current-password"}
                       value={form.password}
                       onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-                      placeholder={mode === "register" ? "Crie uma senha segura" : "Digite sua senha"}
+                      placeholder={mode === "register" ? "Minimo 8 caracteres com letras e numeros" : "Digite sua senha"}
                       className="h-full w-full bg-transparent text-base text-white outline-none placeholder:text-slate-600"
                     />
                     <button

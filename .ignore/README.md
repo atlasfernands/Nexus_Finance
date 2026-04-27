@@ -11,6 +11,7 @@ Ela nao e uma lixeira e nao deve receber segredos, APKs, builds ou arquivos temp
 3. `../README.md`
 4. `../docs/mobile/README.md`
 5. `../docs/transaction-memory.md`
+6. `../docs/security-hardening.md`
 
 ## Regras importantes
 

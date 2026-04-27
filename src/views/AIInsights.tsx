@@ -6,13 +6,14 @@
 import React, { useState } from "react";
 import { AlertCircle, ArrowRight, Bot, BrainCircuit, History, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from "react-markdown";
+import { useAuth } from "../features/auth/AuthContext";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
-import { getEnvVar } from "../lib/env";
+import { requestAIAnalysis } from "../services/ai";
 
 export default function AIInsights() {
+  const { session } = useAuth();
   const { state, dispatch } = useFinance();
   const {
     currentPeriodLabel,
@@ -32,56 +33,37 @@ export default function AIInsights() {
     setError(null);
 
     try {
-      const apiKey = getEnvVar("GEMINI_API_KEY", "") || getEnvVar("VITE_GEMINI_API_KEY", "");
-      if (!apiKey) {
-        throw new Error("Chave Gemini nao configurada. Use VITE_GEMINI_API_KEY no .env.");
+      if (!session?.access_token) {
+        throw new Error("Sessao expirada. Entre novamente para gerar o diagnostico.");
       }
 
-      const ai = new GoogleGenAI({ apiKey });
-      const transactionsContext = transactions
-        .slice(0, 30)
-        .map(
-          (transaction) =>
-            `- ${transaction.date}: ${transaction.description} (${transaction.subcategory}) [${transaction.type}] R$ ${transaction.amount}`
-        )
-        .join("\n");
+      const response = await requestAIAnalysis(
+        {
+          transactions: transactions.slice(0, 30).map((transaction) => ({
+            date: transaction.date,
+            description: transaction.description,
+            subcategory: transaction.subcategory,
+            type: transaction.type,
+            amount: transaction.amount,
+          })),
+          profile: state.profile,
+          metrics: {
+            currentPeriodLabel,
+            saldoRealizado,
+            saldoProjetado,
+            entradasMes,
+            saidasMes,
+            saldoLoja,
+            metaAtingidaPercent,
+          },
+        },
+        session.access_token
+      );
 
-      const prompt = `
-        Voce e um consultor financeiro senior especializado em MEI e financas pessoais.
-        Analise os seguintes dados financeiros do usuario ${state.profile.name} (Loja: ${state.profile.store}):
-        PERIODO EM ANALISE: ${currentPeriodLabel}
-
-        METRICAS ATUAIS:
-        - Saldo Realizado: R$ ${saldoRealizado}
-        - Saldo Projetado: R$ ${saldoProjetado}
-        - Entradas no Mes: R$ ${entradasMes}
-        - Saidas no Mes: R$ ${saidasMes}
-        - Faturamento da Loja: R$ ${saldoLoja}
-        - Meta da Loja: R$ ${state.profile.goal} (${metaAtingidaPercent.toFixed(1)}% atingido)
-
-        ULTIMAS TRANSACOES:
-        ${transactionsContext}
-
-        REQUISITOS DA ANALISE:
-        1. De um Score Financeiro de 0 a 10.
-        2. Identifique 3 padroes de gastos.
-        3. Sugira 2 estrategias acionaveis para atingir a meta da loja.
-        4. Alerte sobre riscos relevantes.
-        5. Formate a resposta em Markdown com secoes claras.
-
-        Responda em Portugues do Brasil com tom profissional e motivador.
-      `;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-      });
-
-      const text = response.text || "Nao foi possivel gerar a analise no momento.";
-      dispatch({ type: "ADD_AI_INSIGHT", payload: text });
+      dispatch({ type: "ADD_AI_INSIGHT", payload: response.fullAnalysis });
     } catch (caughtError) {
       console.error(caughtError);
-      setError("Falha ao conectar com o Nexus AI Core. Verifique a configuracao da chave API.");
+      setError(caughtError instanceof Error ? caughtError.message : "Falha ao conectar com o Nexus AI Core.");
     } finally {
       setLoading(false);
     }

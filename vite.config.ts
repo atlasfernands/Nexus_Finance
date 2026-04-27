@@ -9,9 +9,6 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
@@ -31,7 +28,6 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             ui: ['lucide-react', 'framer-motion', 'motion', 'recharts'],
             utils: ['date-fns', 'clsx', 'papaparse', 'tailwind-merge'],
-            ai: ['@google/genai'],
           },
         },
       },

@@ -1,6 +1,6 @@
 # Nexus Finance
 
-Painel financeiro web para casa + MEI, com dashboard, importacao de CSV/XLSX, relatorios, alertas de caixa e autenticacao.
+Painel financeiro web para casa + MEI, com dashboard, importacao de CSV, relatorios, alertas de caixa e autenticacao.
 
 ## Stack
 
@@ -34,8 +34,11 @@ Crie um `.env` baseado em `.env.example`.
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
-VITE_GEMINI_API_KEY=
+GEMINI_API_KEY=
+VITE_API_BASE_URL=
 ```
+
+`VITE_API_BASE_URL` e opcional. Use apenas em builds Android/Capacitor se o app precisar chamar a API da Vercel por URL absoluta.
 
 ## Preparacao para Supabase
 
@@ -59,10 +62,10 @@ VITE_GEMINI_API_KEY=
 3. Adicione as variaveis:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_GEMINI_API_KEY` se usar IA
+   - `GEMINI_API_KEY` se usar IA. Esta variavel deve ficar apenas no servidor/Vercel, nunca com prefixo `VITE_`.
 4. Deploy.
 
-O arquivo `vercel.json` ja foi incluido para fallback de SPA.
+O arquivo `vercel.json` ja foi incluido com fallback de SPA e headers de seguranca.
 
 ## Vercel Analytics
 

@@ -46,6 +46,7 @@ on public.finance_transactions (user_id, transaction_date);
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -72,48 +73,48 @@ drop policy if exists "Users can read own finance profile" on public.finance_pro
 create policy "Users can read own finance profile"
 on public.finance_profiles
 for select
-using (auth.uid() = user_id);
+using ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can insert own finance profile" on public.finance_profiles;
 create policy "Users can insert own finance profile"
 on public.finance_profiles
 for insert
-with check (auth.uid() = user_id);
+with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can update own finance profile" on public.finance_profiles;
 create policy "Users can update own finance profile"
 on public.finance_profiles
 for update
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can delete own finance profile" on public.finance_profiles;
 create policy "Users can delete own finance profile"
 on public.finance_profiles
 for delete
-using (auth.uid() = user_id);
+using ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can read own transactions" on public.finance_transactions;
 create policy "Users can read own transactions"
 on public.finance_transactions
 for select
-using (auth.uid() = user_id);
+using ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can insert own transactions" on public.finance_transactions;
 create policy "Users can insert own transactions"
 on public.finance_transactions
 for insert
-with check (auth.uid() = user_id);
+with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can update own transactions" on public.finance_transactions;
 create policy "Users can update own transactions"
 on public.finance_transactions
 for update
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
 
 drop policy if exists "Users can delete own transactions" on public.finance_transactions;
 create policy "Users can delete own transactions"
 on public.finance_transactions
 for delete
-using (auth.uid() = user_id);
+using ((select auth.uid()) = user_id);
