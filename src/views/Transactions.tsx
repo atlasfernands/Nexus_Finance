@@ -7,6 +7,13 @@ import React, { useMemo, useState } from "react";
 import { Check, Edit2, Plus, Search, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useFinance } from "../features/finance/FinanceContext";
+import {
+  createDefaultFormData,
+  formatSignedCurrency,
+  formatTransactionStatusLabel,
+  formatTransactionTypeLabel,
+  hasMemoryMatch,
+} from "../features/transactions/transactionForm";
 import { DuplicateTransactionMatch, findDuplicateTransaction } from "../lib/transactionDuplicates";
 import {
   Transaction,
@@ -15,58 +22,6 @@ import {
   TransactionType,
 } from "../types";
 import { cn, formatCurrency, generateId } from "../lib/utils";
-
-function formatTransactionTypeLabel(type: TransactionType) {
-  return type === TransactionType.INCOME ? "Entrada" : "Saida";
-}
-
-function formatTransactionStatusLabel(status: TransactionStatus) {
-  if (status === TransactionStatus.PAID) {
-    return "Pago";
-  }
-
-  if (status === TransactionStatus.PENDING) {
-    return "Pendente";
-  }
-
-  if (status === TransactionStatus.CANCELLED) {
-    return "Cancelado";
-  }
-
-  return "Realizado";
-}
-
-function formatSignedCurrency(value: number, isNegative: boolean) {
-  const formatted = formatCurrency(Math.abs(value));
-  return isNegative ? `(${formatted})` : formatted;
-}
-
-function createDefaultFormData(): Partial<Transaction> {
-  return {
-    description: "",
-    amount: 0,
-    type: TransactionType.EXPENSE,
-    subcategory: TransactionSubcategory.HOME,
-    status: TransactionStatus.PENDING,
-    date: new Date().toLocaleDateString("pt-BR"),
-    category: "Outros",
-    recurring: false,
-  };
-}
-
-function getMemoryKey(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
-
-function hasMemoryMatch(items: string[], value: string) {
-  const key = getMemoryKey(value);
-
-  return items.some((item) => getMemoryKey(item) === key);
-}
 
 export default function Transactions() {
   const { addTransaction, state, dispatch, updateTransaction } = useFinance();
@@ -81,11 +36,8 @@ export default function Transactions() {
   const [pendingTransaction, setPendingTransaction] = useState<Transaction | null>(null);
   const [categoryMode, setCategoryMode] = useState<"select" | "create">("select");
 
-  const categoryOptions = useMemo(() => state.transactionMemory.categories, [state.transactionMemory.categories]);
-  const descriptionOptions = useMemo(
-    () => state.transactionMemory.descriptions,
-    [state.transactionMemory.descriptions]
-  );
+  const categoryOptions = state.transactionMemory.categories;
+  const descriptionOptions = state.transactionMemory.descriptions;
 
   const filteredTransactions = useMemo(() => {
     return state.transactions.filter((transaction) => {
