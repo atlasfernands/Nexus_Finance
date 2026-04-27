@@ -48,6 +48,20 @@ Saida esperada:
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+O app Android usa modo imersivo fullscreen. A barra de notificacao e a barra de navegacao ficam escondidas e aparecem temporariamente quando o usuario desliza a borda da tela.
+
+APK debug ja separado para envio manual:
+
+```text
+D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.apk
+```
+
+Checksum:
+
+```text
+D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.sha256.txt
+```
+
 ## Emulador local
 
 O AVD local padrao e `NexusFinance_API36`, criado em:
@@ -68,6 +82,15 @@ npm run android:launch
 
 Se `android:accel-check` indicar que o Android Emulator Hypervisor Driver nao esta instalado, instale o driver/ative virtualizacao antes de tentar usar o emulador. Sem aceleracao, o emulador pode ficar lento demais para validar o app.
 
+Estado atual desta maquina:
+
+- JDK: `D:\DevTools\NexusAndroid\jdk\jdk-21.0.10+7`
+- SDK: `D:\DevTools\NexusAndroid\android-sdk`
+- ADB: `D:\DevTools\NexusAndroid\android-sdk\platform-tools\adb.exe`
+- Emulador: `D:\DevTools\NexusAndroid\android-sdk\emulator\emulator.exe`
+- AVD: `D:\DevTools\NexusAndroid\android-avd\NexusFinance_API36.avd`
+- Bloqueio atual: Android Emulator Hypervisor Driver nao instalado.
+
 ## Build de release
 
 Crie uma keystore fora do Git. Nunca coloque `.jks`, `.keystore` ou senhas no repositorio.
@@ -85,6 +108,20 @@ android/app/build/outputs/bundle/release/app-release.aab
 ```
 
 ## Publicar APK no site
+
+O APK de teste atual e servido pelo site em:
+
+```text
+public/downloads/nexus-finance-debug.apk
+```
+
+Link usado pelo app:
+
+```text
+/downloads/nexus-finance-debug.apk
+```
+
+O script `npm run mobile:sync` remove `dist/downloads` antes do `cap sync`, evitando que o APK de download seja empacotado dentro do proprio app Android.
 
 Quando houver APK assinado para download direto:
 

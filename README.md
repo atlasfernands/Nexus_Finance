@@ -9,6 +9,16 @@ Painel financeiro web para casa + MEI, com dashboard, importacao de CSV/XLSX, re
 - Recharts
 - Supabase Auth
 - Vercel para deploy
+- Capacitor para Android nativo
+- PWA com manifesto, icones e service worker simples
+
+## Leitura rapida para agentes
+
+Antes de varrer o projeto inteiro, leia a pasta `.ignore`:
+
+- `.ignore/README.md`: ordem de leitura e regras do projeto
+- `.ignore/PROJECT_BRIEF.md`: estado atual do produto, Supabase, mobile e riscos
+- `.ignore/NEXT_AGENT_CHECKLIST.md`: comandos, validacoes e proximos passos
 
 ## Rodando localmente
 
@@ -65,6 +75,9 @@ O arquivo `vercel.json` ja foi incluido para fallback de SPA.
 
 - O projeto esta preparado para PWA e Android nativo via Capacitor.
 - A documentacao de implementacao e release fica em `docs/mobile`.
+- O APK debug ja compila localmente.
+- O APK separado para testes fica em `D:\NexusFinance-APK`.
+- As ferramentas Android ficam em `D:\DevTools\NexusAndroid` para nao ocupar o `C:\`.
 - Para sincronizar o build web com o Android:
 
 ```bash
@@ -76,6 +89,19 @@ npm run mobile:sync
 ```bash
 npm run android:open
 ```
+
+- Para gerar APK debug:
+
+```bash
+npm run android:apk:debug
+```
+
+## Lancamentos e memoria
+
+- Categorias e descricoes usadas em lancamentos ficam salvas por conta.
+- No modal de novo lancamento, a categoria pode ser selecionada ou criada.
+- Descricoes anteriores aparecem como sugestoes enquanto o usuario digita.
+- A memoria e persistida no Supabase em `finance_profiles.category_memory` e `finance_profiles.description_memory`.
 
 ## Auth atual
 
@@ -89,5 +115,7 @@ npm run android:open
 
 - Configurar recuperacao de senha
 - Criar fluxo de confirmacao e redefinicao de senha
+- Testar APK debug em um Android real
+- Criar keystore fora do Git e gerar release assinado
 - Adicionar auditoria ou `updated_by` se houver operacao em equipe
 - Evoluir importacao para batch insert server-side se o volume crescer

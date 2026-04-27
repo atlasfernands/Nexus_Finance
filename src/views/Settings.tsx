@@ -147,17 +147,26 @@ export default function Settings() {
           <div className="rounded-xl border border-brand-border bg-slate-950/50 p-5">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h4 className="font-bold text-white">Android APK</h4>
-              <span className="rounded-full border border-brand-yellow/40 bg-brand-yellow/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-yellow">
-                Em preparacao
+              <span
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wide",
+                  hasAndroidApkRelease
+                    ? "border-brand-green/40 bg-brand-green/10 text-brand-green"
+                    : "border-brand-yellow/40 bg-brand-yellow/10 text-brand-yellow"
+                )}
+              >
+                {hasAndroidApkRelease ? "Teste disponivel" : "Em preparacao"}
               </span>
             </div>
             <p className="mb-5 text-sm leading-relaxed text-slate-400">
-              O app Android nativo esta sendo preparado com Capacitor. Quando houver um APK assinado, este card vira o ponto
-              oficial de download.
+              {hasAndroidApkRelease
+                ? `APK Android de teste pronto para instalar. Versao ${mobileRelease.android.version}, atualizado em ${mobileRelease.android.updatedAt}.`
+                : "O app Android nativo esta sendo preparado com Capacitor. Quando houver um APK assinado, este card vira o ponto oficial de download."}
             </p>
             {hasAndroidApkRelease ? (
               <a
                 href={mobileRelease.android.apkUrl}
+                download
                 className="btn-primary flex w-full items-center justify-center gap-2"
               >
                 <Download size={18} /> Baixar APK Android

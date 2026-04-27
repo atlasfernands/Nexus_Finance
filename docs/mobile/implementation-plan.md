@@ -14,8 +14,12 @@ Transformar o Nexus Finance em PWA instalavel e app Android nativo sem reescreve
 - [x] Melhorar manifesto e metas mobile no `index.html`.
 - [x] Criar area de status/download mobile no app.
 - [x] Criar documentacao para Android, Play Store, iOS, PWA e versionamento.
-- [ ] Instalar Android Studio/JDK na maquina local.
-- [ ] Gerar APK debug e testar em aparelho ou emulador.
+- [x] Instalar JDK 21 e Android SDK em `D:\DevTools\NexusAndroid`.
+- [x] Gerar APK debug.
+- [x] Criar AVD `NexusFinance_API36`.
+- [x] Copiar APK debug para `D:\NexusFinance-APK`.
+- [ ] Instalar Android Emulator Hypervisor Driver ou usar aparelho Android real.
+- [ ] Testar APK debug em aparelho ou emulador acelerado.
 - [ ] Criar keystore de release fora do Git.
 - [ ] Gerar APK/AAB assinado.
 - [ ] Publicar o APK no site quando existir release assinado.
@@ -36,3 +40,4 @@ Transformar o Nexus Finance em PWA instalavel e app Android nativo sem reescreve
 - `npm run mobile:sync` copia o build web para `android/app/src/main/assets/public`.
 - O card Mobile aparece em Configuracoes.
 - O service worker registra apenas em build de producao.
+- `npm run android:apk:debug` gera `android/app/build/outputs/apk/debug/app-debug.apk`.
