@@ -255,7 +255,7 @@ function normalizeTransaction(raw: unknown): Transaction {
 }
 
 function normalizeFinanceState(rawState: unknown, fallbackState: FinanceState): FinanceState {
-  const state = (rawState ?? {}) as Record<string, any>;
+  const state = (rawState ?? {}) as Record<string, unknown>;
   const profile = (state.profile ?? {}) as Record<string, unknown>;
   const preferences = (state.preferences ?? {}) as Record<string, unknown>;
   const reportingPeriod = (state.reportingPeriod ?? {}) as Record<string, unknown>;

@@ -220,7 +220,7 @@ export default function ImportTransactions() {
         <CardHeader>
           <h3 className="text-xl font-bold text-white">Importacao Inteligente</h3>
           <p className="text-sm text-slate-500">
-            Arraste seu arquivo CSV ou Excel (XLSX) para detectar e importar lancamentos automaticamente.
+            Arraste seu arquivo CSV para detectar e importar lancamentos automaticamente.
           </p>
         </CardHeader>
         <CardContent>
@@ -248,14 +248,14 @@ export default function ImportTransactions() {
               type="file"
               ref={fileInputRef}
               className="hidden"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv"
               onChange={(event) => event.target.files?.[0] && processFile(event.target.files[0])}
             />
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
               <Upload className={cn(dragActive ? "text-brand-green" : "text-slate-400")} size={32} />
             </div>
             <p className="font-medium text-white">Clique para selecionar ou arraste o arquivo</p>
-            <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-500">Formatos: CSV, XLSX, XLS</p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-500">Formato: CSV</p>
           </div>
         </CardContent>
       </Card>

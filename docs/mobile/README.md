@@ -38,5 +38,5 @@ npm run android:aab:release
 - Para abrir pela IDE, instale Android Studio em `D:\` ou aponte a IDE para o SDK em `D:\DevTools\NexusAndroid\android-sdk`.
 - O emulador ainda depende do Android Emulator Hypervisor Driver no Windows. Sem ele, use um celular Android real para validar.
 - Nunca commite keystore, senha de assinatura, `local.properties`, APK ou AAB.
-- O pacote `xlsx` ainda aparece no `npm audit` com vulnerabilidade alta sem fix oficial. Ele nao foi introduzido pelo mobile, mas deve ser trocado em uma fase futura.
+- A importacao esta limitada a CSV. O suporte XLS/XLSX foi removido porque o pacote `xlsx` tinha vulnerabilidades altas sem fix oficial.
 - Links e passos de loja estao nos arquivos especificos deste diretorio.

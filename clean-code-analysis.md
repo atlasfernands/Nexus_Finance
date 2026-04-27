@@ -1,91 +1,38 @@
-# 📋 Relatório Atualizado - Clean Code Principles
+# Clean Code Analysis - Nexus Finance
 
-## 🎯 Análise do Projeto Nexus_Finance
+Atualizado em: 2026-04-27
 
-Aplicando os princípios de "Clean Code" de Robert C. Martin ao projeto Nexus_Finance.
+## Status geral
 
----
+O projeto esta em bom estado operacional: TypeScript, testes, build e audit passam. As correcoes desta rodada removeram o principal risco de dependencia (`xlsx`) e reduziram pontos simples de divida tecnica no importador e na configuracao do build.
 
-## ✅ IMPLEMENTADO: Melhorias de Clean Code
+## Validacoes recentes
 
-### 1. ✅ Padronização de Idioma
-**Status**: ✅ IMPLEMENTADO
-- **Campos da interface**: `data` → `date`, `descricao` → `description`, etc.
-- **Views do app**: `transacoes` → `transactions`, `config` → `settings`
-- **Perfil do usuário**: `nome` → `name`, `loja` → `store`, `meta` → `goal`
-- **Preferências**: `mostrarCentavos` → `showCents`, etc.
+- `npm run lint`: passou.
+- `npx vitest run`: passou, 3 arquivos e 8 testes.
+- `npm run build`: passou sem chunk vazio.
+- `npm audit --audit-level=high`: passou, 0 vulnerabilidades.
 
-### 2. ✅ Implementação de Enums
-**Status**: ✅ IMPLEMENTADO
-```typescript
-// Antes
-export type TransactionStatus = "realizado" | "pendente" | "pago" | "cancelado";
+## Melhorias aplicadas
 
-// Depois
-export enum TransactionStatus {
-  COMPLETED = "realizado",
-  PENDING = "pendente",
-  PAID = "pago",
-  CANCELLED = "cancelado"
-}
-```
+- Importacao limitada a CSV para remover dependencia vulneravel.
+- Removido `xlsx` de `package.json` e `package-lock.json`.
+- Importador tipado com `RawImportRow` e `RawImportCell`.
+- Testes do importador deixaram de acessar metodo privado via `any`.
+- `vite.config.ts` limpo e sem chunk `vendor` vazio.
+- `.gitignore` refeito sem bytes NUL corrompidos.
+- `src/vite-env.d.ts` criado para tipar `import.meta.env`.
+- Caminho das skills locais documentado em `.ignore/README.md`.
 
-### 3. ✅ Refatoração de Funções Grandes
-**Status**: ✅ IMPLEMENTADO
-```typescript
-// Antes: Switch statement extenso
-const renderView = () => {
-  switch (currentView) {
-    case "dashboard": return <Dashboard />;
-    case "transacoes": return <Transactions />;
-    // ... 8 cases
-  }
-};
+## Dividas tecnicas restantes
 
-// Depois: Mapa limpo
-const viewComponents = {
-  dashboard: Dashboard,
-  transactions: Transactions,
-  // ...
-};
-const ViewComponent = viewComponents[currentView] || Dashboard;
-return <ViewComponent />;
-```
+- `src/features/finance/FinanceContext.tsx` ainda concentra reducer, normalizacao, persistencia local, sincronizacao Supabase e regras de duplicidade. Proximo passo recomendado: extrair `financeReducer`, `financeNormalization` e um hook de persistencia.
+- `src/views/Reports.tsx` continua grande e mistura UI, calculos e HTML de impressao. Proximo passo recomendado: extrair geracao de relatorio e componentes visuais.
+- `src/views/Transactions.tsx` ainda concentra filtro, tabela, formulario, memorias e revisao de duplicados. Proximo passo recomendado: separar `TransactionForm`, `TransactionTable` e `DuplicateReviewPanel`.
+- Logs com `console.error` e `console.warn` seguem em fluxos de erro. Para producao madura, criar um logger central ajuda a padronizar mensagens e futura telemetria.
 
----
+## Prioridade sugerida
 
-## 📊 Score Atualizado: 9.2/10
-
-**Melhorias implementadas**:
-- ✅ Type safety com enums
-- ✅ Consistência de idioma
-- ✅ Funções menores e mais legíveis
-- ✅ Melhor manutenibilidade
-
-**Pontos Fortes Mantidos**:
-- Estrutura sólida
-- Tipagem forte
-- Separação de responsabilidades
-- Convenções consistentes
-
----
-
-## 🚀 Validação das Melhorias
-
-- ✅ **Build passa**: TypeScript compila sem erros
-- ✅ **Type safety**: Enums previnem erros de digitação
-- ✅ **Legibilidade**: Código mais fácil de entender
-- ✅ **Manutenibilidade**: Mudanças futuras serão mais seguras
-
----
-
-## 📈 Próximas Melhorias Opcionais
-
-Quando houver tempo para refatoração adicional:
-
-1. **Quebrar reducer**: Separar em reducers menores por domínio
-2. **Adicionar validações**: Schemas para dados de entrada
-3. **Memoização**: React.memo para componentes pesados
-4. **Testes**: Cobertura para lógica crítica
-
-O código agora segue muito mais de perto os princípios de Clean Code! 🎉
+1. Refatorar `FinanceContext.tsx` em modulos menores, mantendo os testes passando.
+2. Extrair o PDF/relatorio de `Reports.tsx`.
+3. Quebrar `Transactions.tsx` em componentes de formulario, tabela e revisao.

@@ -4,9 +4,7 @@ import { TransactionStatus, TransactionType } from "../types";
 
 describe("ImportService", () => {
   it("classifies expense rows and preserves running balance metadata", () => {
-    const processData = (ImportService as any).processData.bind(ImportService);
-
-    const result = processData([
+    const result = ImportService.parseRows([
       {
         data: "01/04/2026",
         descricao: "Aluguel",
@@ -28,9 +26,7 @@ describe("ImportService", () => {
   });
 
   it("keeps entries marked as income and stores positive running balance", () => {
-    const processData = (ImportService as any).processData.bind(ImportService);
-
-    const result = processData([
+    const result = ImportService.parseRows([
       {
         data: "09/04/2026",
         descricao: "Saldo Inicial Loja",

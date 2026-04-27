@@ -18,5 +18,7 @@ Ela nao e uma lixeira e nao deve receber segredos, APKs, builds ou arquivos temp
 - Instale ferramentas pesadas no `D:\`, nao no `C:\`.
 - Android/JDK/SDK ficam em `D:\DevTools\NexusAndroid`.
 - APKs para envio manual ficam em `D:\NexusFinance-APK`.
+- Skills locais do Antigravity ficam em `C:\Users\jpjoa\.gemini\antigravity\skills\skills`.
+- Para analises de Clean Code, carregar `C:\Users\jpjoa\.gemini\antigravity\skills\skills\clean-code\SKILL.md`.
 - Nunca commite `.env`, token, keystore, APK, AAB, `android/local.properties`, `dist` ou caches Android.
 - Antes de mexer em dados/Supabase, confira as migrations em `supabase/migrations`.

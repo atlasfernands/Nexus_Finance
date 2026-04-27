@@ -1,7 +1,10 @@
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import { compareDateStrings, generateId } from "../lib/utils";
 import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
+
+export type RawImportCell = string | number | boolean | Date | null | undefined;
+export type RawImportRow = Record<string, RawImportCell>;
+type CsvRow = RawImportCell[];
 
 export interface ImportResult {
   transactions: Transaction[];
@@ -46,28 +49,27 @@ export class ImportService {
   static async parseFile(file: File): Promise<ImportResult> {
     const extension = file.name.split(".").pop()?.toLowerCase();
 
-    let rawData: any[] = [];
-
-    if (extension === "csv") {
-      rawData = await this.parseCSV(file);
-    } else if (extension === "xlsx" || extension === "xls") {
-      rawData = await this.parseExcel(file);
-    } else {
-      throw new Error("Formato de arquivo nao suportado. Use CSV ou XLSX.");
+    if (extension !== "csv") {
+      throw new Error("Formato de arquivo nao suportado. Use CSV.");
     }
 
+    const rawData = await this.parseCSV(file);
     return this.processData(rawData);
   }
 
-  private static parseCSV(file: File): Promise<any[]> {
+  static parseRows(rawData: RawImportRow[]): ImportResult {
+    return this.processData(rawData);
+  }
+
+  private static parseCSV(file: File): Promise<RawImportRow[]> {
     return new Promise((resolve, reject) => {
-      Papa.parse(file, {
+      Papa.parse<CsvRow>(file, {
         header: false,
         skipEmptyLines: true,
         complete: (results) => {
-          let data = results.data as any[];
+          let data = results.data;
 
-          data = data.filter((row: any) => {
+          data = data.filter((row): row is CsvRow => {
             if (!Array.isArray(row) || row.length === 0) {
               return false;
             }
@@ -90,20 +92,15 @@ export class ImportService {
             return datePattern.test(firstCol);
           });
 
-          if (data.length > 0) {
-            const sampleRow = data[0];
-            const headers = this.inferHeadersFromData(sampleRow);
-
-            data = data.map((row: any) => {
-              const obj: any = {};
-              headers.forEach((header, index) => {
-                obj[header] = row[index] || "";
-              });
-              return obj;
-            });
+          if (data.length === 0) {
+            resolve([]);
+            return;
           }
 
-          resolve(data);
+          const headers = this.inferHeadersFromData(data[0]);
+          const rows = data.map((row) => this.createRawImportRow(row, headers));
+
+          resolve(rows);
         },
         error: (error) => {
           reject(new Error(`Erro ao processar CSV: ${error.message}`));
@@ -112,7 +109,7 @@ export class ImportService {
     });
   }
 
-  private static inferHeadersFromData(sampleRow: any[]): string[] {
+  private static inferHeadersFromData(sampleRow: CsvRow): string[] {
     const headers = ["data", "descricao", "categoria", "tipo", "valor", "status", "saldo_acumulado"];
 
     if (sampleRow.length >= 7) {
@@ -126,6 +123,13 @@ export class ImportService {
     return sampleRow.map((_, index) => `col_${index + 1}`);
   }
 
+  private static createRawImportRow(row: CsvRow, headers: string[]): RawImportRow {
+    return headers.reduce<RawImportRow>((rawRow, header, index) => {
+      rawRow[header] = row[index] ?? "";
+      return rawRow;
+    }, {});
+  }
+
   private static normalizeComparisonText(value: string): string {
     return value
       .toLowerCase()
@@ -133,26 +137,6 @@ export class ImportService {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, " ")
       .trim();
-  }
-
-  private static parseExcel(file: File): Promise<any[]> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const binary = event.target?.result;
-          const workbook = XLSX.read(binary, { type: "binary" });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-          resolve(jsonData as any[]);
-        } catch (error) {
-          reject(new Error(`Erro ao processar Excel: ${error}`));
-        }
-      };
-      reader.onerror = () => reject(new Error("Erro ao ler arquivo Excel"));
-      reader.readAsBinaryString(file);
-    });
   }
 
   private static sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
@@ -167,7 +151,7 @@ export class ImportService {
     });
   }
 
-  private static processData(rawData: any[]): ImportResult {
+  private static processData(rawData: RawImportRow[]): ImportResult {
     const transactions: Transaction[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -214,14 +198,15 @@ export class ImportService {
     return { transactions: sortedTransactions, errors, warnings };
   }
 
-  private static detectColumnMapping(sampleRow: any): ColumnMapping {
+  private static detectColumnMapping(sampleRow: RawImportRow): ColumnMapping {
     const mapping = { ...this.DEFAULT_MAPPING };
     const headers = Object.keys(sampleRow).map((header) => header.toLowerCase().trim());
 
     for (const [field, possibleHeaders] of Object.entries(this.COMMON_HEADERS)) {
       for (const header of headers) {
         if (possibleHeaders.some((possibleHeader) => header.includes(possibleHeader) || possibleHeader.includes(header))) {
-          (mapping as any)[field] = Object.keys(sampleRow).find((key) => key.toLowerCase().trim() === header) || field;
+          mapping[field as keyof ColumnMapping] =
+            Object.keys(sampleRow).find((key) => key.toLowerCase().trim() === header) || field;
           break;
         }
       }
@@ -230,7 +215,7 @@ export class ImportService {
     return mapping;
   }
 
-  private static mapRowToTransaction(row: any, mapping: ColumnMapping, rowNumber: number): Transaction | null {
+  private static mapRowToTransaction(row: RawImportRow, mapping: ColumnMapping, rowNumber: number): Transaction | null {
     const descricao = this.extractStringValue(row, mapping.descricao);
     const valorRaw = this.extractNumericValue(row, mapping.valor);
     const dataRaw = this.extractStringValue(row, mapping.data);
@@ -324,7 +309,11 @@ export class ImportService {
     };
   }
 
-  private static extractStringValue(row: any, field: string): string | undefined {
+  private static extractStringValue(row: RawImportRow, field: string | undefined): string | undefined {
+    if (!field) {
+      return undefined;
+    }
+
     const value = row[field];
     if (value === null || value === undefined) {
       return undefined;
@@ -332,7 +321,11 @@ export class ImportService {
     return String(value).trim();
   }
 
-  private static extractNumericValue(row: any, field: string): number | null {
+  private static extractNumericValue(row: RawImportRow, field: string | undefined): number | null {
+    if (!field) {
+      return null;
+    }
+
     const value = row[field];
     if (value === null || value === undefined || value === "") {
       return null;

@@ -1,7 +1,5 @@
 export function registerServiceWorker() {
-  const env = (import.meta as any).env as { PROD?: boolean } | undefined;
-
-  if (!env?.PROD || typeof window === "undefined" || !("serviceWorker" in navigator)) {
+  if (!import.meta.env.PROD || typeof window === "undefined" || !("serviceWorker" in navigator)) {
     return;
   }
 
