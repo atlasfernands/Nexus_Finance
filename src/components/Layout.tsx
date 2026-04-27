@@ -24,6 +24,10 @@ import { useAuth } from "../features/auth/AuthContext";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
 import { formatCurrency, parseDateString } from "../lib/utils";
+import {
+  fetchMutedReminderTransactionIds,
+  muteFinanceTransactionReminder,
+} from "../services/notifications";
 import ReportingPeriodControls from "./ReportingPeriodControls";
 
 interface NavItemProps {
@@ -75,6 +79,8 @@ export default function Layout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [systemStatus, setSystemStatus] = useState<"online" | "offline" | "checking">("checking");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mutedReminderIds, setMutedReminderIds] = useState<Set<string>>(() => new Set());
+  const [notificationActionError, setNotificationActionError] = useState("");
   const { state } = useFinance();
   const { logout, session, user } = useAuth();
   const { upcomingPendingExpenses } = useFinanceStats();
@@ -136,45 +142,94 @@ export default function Layout({
     "Usuario";
   const displayEmail = user?.email ?? session?.user?.email ?? "";
 
-  const notifications = upcomingPendingExpenses.map((transaction) => {
-    const parsedDate = parseDateString(transaction.date);
-    const dueDate = parsedDate ? new Date(parsedDate) : null;
+  const notifications = state.preferences.enableAlerts
+    ? upcomingPendingExpenses
+        .filter((transaction) => !mutedReminderIds.has(transaction.id))
+        .map((transaction) => {
+          const parsedDate = parseDateString(transaction.date);
+          const dueDate = parsedDate ? new Date(parsedDate) : null;
 
-    if (dueDate) {
-      dueDate.setHours(0, 0, 0, 0);
-    }
+          if (dueDate) {
+            dueDate.setHours(0, 0, 0, 0);
+          }
 
-    const daysUntil = dueDate
-      ? Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      : null;
+          const daysUntil = dueDate
+            ? Math.round((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
 
-    const statusLabel =
-      daysUntil === null
-        ? "Data invalida"
-        : daysUntil < 0
-          ? `Venceu ha ${Math.abs(daysUntil)} dia(s)`
-          : daysUntil === 0
-            ? "Vence hoje"
-            : `Faltam ${daysUntil} dia(s)`;
+          const statusLabel =
+            daysUntil === null
+              ? "Data invalida"
+              : daysUntil < 0
+                ? `Venceu ha ${Math.abs(daysUntil)} dia(s)`
+                : daysUntil === 0
+                  ? "Vence hoje"
+                  : `Faltam ${daysUntil} dia(s)`;
 
-    const statusTone =
-      daysUntil === null
-        ? "text-slate-400"
-        : daysUntil < 0
-          ? "text-brand-red"
-          : daysUntil <= 3
-            ? "text-brand-yellow"
-            : "text-brand-green";
+          const statusTone =
+            daysUntil === null
+              ? "text-slate-400"
+              : daysUntil < 0
+                ? "text-brand-red"
+                : daysUntil <= 3
+                  ? "text-brand-yellow"
+                  : "text-brand-green";
 
-    return {
-      ...transaction,
-      daysUntil,
-      statusLabel,
-      statusTone,
-    };
-  });
+          return {
+            ...transaction,
+            daysUntil,
+            statusLabel,
+            statusTone,
+          };
+        })
+    : [];
 
   const unreadCount = notifications.filter((notification) => notification.daysUntil === null || notification.daysUntil <= 7).length;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setMutedReminderIds(new Set());
+      return;
+    }
+
+    let mounted = true;
+
+    fetchMutedReminderTransactionIds(user.id).then((transactionIds) => {
+      if (mounted) {
+        setMutedReminderIds(transactionIds);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [state.transactions.length, user?.id]);
+
+  const muteReminder = async (transactionId: string) => {
+    if (!user?.id) {
+      return;
+    }
+
+    setNotificationActionError("");
+    setMutedReminderIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      nextIds.add(transactionId);
+      return nextIds;
+    });
+
+    try {
+      await muteFinanceTransactionReminder(user.id, transactionId);
+    } catch (caughtError) {
+      setMutedReminderIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(transactionId);
+        return nextIds;
+      });
+      setNotificationActionError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel silenciar esta conta agora."
+      );
+    }
+  };
 
   useEffect(() => {
     if (!notificationsOpen) {
@@ -397,7 +452,17 @@ export default function Layout({
             </div>
 
             <div className="max-h-[70vh] overflow-y-auto p-3">
-              {notifications.length === 0 ? (
+              {notificationActionError && (
+                <div className="mb-3 rounded-xl border border-brand-red/20 bg-brand-red/10 p-3 text-xs text-brand-red">
+                  {notificationActionError}
+                </div>
+              )}
+
+              {!state.preferences.enableAlerts ? (
+                <div className="rounded-xl border border-brand-yellow/20 bg-brand-yellow/5 p-4 text-sm text-slate-200">
+                  Alertas estao desativados nas configuracoes.
+                </div>
+              ) : notifications.length === 0 ? (
                 <div className="rounded-xl border border-brand-green/20 bg-brand-green/5 p-4 text-sm text-slate-200">
                   Nenhuma conta pendente no periodo selecionado.
                 </div>
@@ -437,6 +502,15 @@ export default function Layout({
                             : "Pagamento coberto"}
                         </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void muteReminder(notification.id);
+                        }}
+                        className="mt-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 transition-colors hover:text-brand-yellow"
+                      >
+                        Nao avisar esta conta
+                      </button>
                     </div>
                   ))}
                 </div>
