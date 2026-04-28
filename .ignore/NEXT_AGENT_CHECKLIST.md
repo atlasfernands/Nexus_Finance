@@ -28,13 +28,13 @@ D:\DevTools\NexusAndroid
 APK para envio:
 
 ```text
-D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.apk
+D:\NexusFinance-APK\nexus-finance-<versao>-debug-AAAAMMDD-HHmm.apk
 ```
 
 APK servido pelo site:
 
 ```text
-public/downloads/nexus-finance-debug.apk
+public/downloads/nexus-finance-<versao>-debug.apk
 ```
 
 Nao remova `scripts/prepare-capacitor-assets.mjs`: ele impede que `public/downloads` seja empacotado dentro do APK Android.

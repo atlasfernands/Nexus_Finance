@@ -40,4 +40,4 @@ Transformar o Nexus Finance em PWA instalavel e app Android nativo sem reescreve
 - `npm run mobile:sync` copia o build web para `android/app/src/main/assets/public`.
 - O card Mobile aparece em Configuracoes.
 - O service worker registra apenas em build de producao.
-- `npm run android:apk:debug` gera `android/app/build/outputs/apk/debug/app-debug.apk`.
+- `npm run android:apk:debug` gera `android/app/build/outputs/apk/debug/nexus-finance-<versao>-debug.apk` e publica uma copia em `public/downloads`.

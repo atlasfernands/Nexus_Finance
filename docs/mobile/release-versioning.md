@@ -5,6 +5,7 @@
 - Web: `package.json` em `version`.
 - Android: `android/app/build.gradle` em `versionCode` e `versionName`.
 - Git: tag `mobile-vX.Y.Z` para releases mobile.
+- APK debug: `nexus-finance-X.Y.Z-debug.apk`.
 
 ## Regras
 
@@ -26,6 +27,7 @@ tag: mobile-v0.2.0
 
 - Atualizar `package.json`.
 - Atualizar `android/app/build.gradle`.
+- Confirmar que o nome do APK gerado ficou versionado.
 - Rodar `npm run lint`.
 - Rodar `npm run build`.
 - Rodar `npm run mobile:sync`.

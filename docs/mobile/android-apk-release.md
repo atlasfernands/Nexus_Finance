@@ -45,7 +45,7 @@ npm run android:apk:debug
 Saida esperada:
 
 ```text
-android/app/build/outputs/apk/debug/app-debug.apk
+android/app/build/outputs/apk/debug/nexus-finance-1.1.0-debug.apk
 ```
 
 O app Android usa modo imersivo fullscreen. A barra de notificacao e a barra de navegacao ficam escondidas e aparecem temporariamente quando o usuario desliza a borda da tela.
@@ -53,13 +53,13 @@ O app Android usa modo imersivo fullscreen. A barra de notificacao e a barra de 
 APK debug ja separado para envio manual:
 
 ```text
-D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.apk
+D:\NexusFinance-APK\nexus-finance-1.1.0-debug-AAAAMMDD-HHmm.apk
 ```
 
 Checksum:
 
 ```text
-D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.sha256.txt
+D:\NexusFinance-APK\nexus-finance-1.1.0-debug-AAAAMMDD-HHmm.sha256.txt
 ```
 
 ## Emulador local
@@ -112,21 +112,23 @@ android/app/build/outputs/bundle/release/app-release.aab
 O APK de teste atual e servido pelo site em:
 
 ```text
-public/downloads/nexus-finance-debug.apk
+public/downloads/nexus-finance-1.1.0-debug.apk
 ```
 
 Link usado pelo app:
 
 ```text
-/downloads/nexus-finance-debug.apk
+/downloads/nexus-finance-1.1.0-debug.apk
 ```
 
 O script `npm run mobile:sync` remove `dist/downloads` antes do `cap sync`, evitando que o APK de download seja empacotado dentro do proprio app Android.
 
+O script `npm run android:apk:debug` agora tambem copia o APK versionado para `public/downloads` e cria os arquivos `.sha256.txt` automaticamente.
+
 Quando houver APK assinado para download direto:
 
-1. Coloque o arquivo em `public/downloads/nexus-finance.apk`.
-2. Atualize `src/lib/mobileRelease.ts` com `apkUrl: "/downloads/nexus-finance.apk"`.
+1. Coloque o arquivo em `public/downloads/nexus-finance-<versao>.apk`.
+2. Atualize `src/lib/mobileRelease.ts` com o `apkUrl` versionado correspondente.
 3. Preencha `version` e `updatedAt`.
 4. Rode `npm run lint`, `npm run build` e `npm run mobile:sync`.
 5. Suba para o Git para a Vercel publicar.

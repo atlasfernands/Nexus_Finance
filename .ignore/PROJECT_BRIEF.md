@@ -23,8 +23,8 @@ Nexus Finance e um app financeiro para casa + MEI com dashboard, importacao CSV/
 - Android Capacitor esta criado em `android/`.
 - APK debug compila com `npm run android:apk:debug`.
 - O app Android usa modo imersivo fullscreen; barras do sistema aparecem por deslize.
-- O site libera download em `public/downloads/nexus-finance-debug.apk`.
-- APK copiado para teste manual: `D:\NexusFinance-APK\nexus-finance-debug-20260426-2154.apk`.
+- O site libera download em `public/downloads/nexus-finance-<versao>-debug.apk`.
+- APK copiado para teste manual: `D:\NexusFinance-APK\nexus-finance-<versao>-debug-AAAAMMDD-HHmm.apk`.
 - AVD local criado: `D:\DevTools\NexusAndroid\android-avd\NexusFinance_API36.avd`.
 
 ## Funcionalidades recentes

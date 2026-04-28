@@ -1,7 +1,7 @@
 {
   "name": "nexus-finance",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -13,12 +13,12 @@
     "mobile:sync": "npm run mobile:build && node scripts/prepare-capacitor-assets.mjs && node scripts/run-mobile-command.mjs cap sync android",
     "android:open": "npm run mobile:sync && node scripts/run-mobile-command.mjs cap open android",
     "android:run": "npm run mobile:sync && node scripts/run-mobile-command.mjs cap run android",
-    "android:apk:debug": "npm run mobile:sync && node scripts/run-gradle.mjs assembleDebug",
+    "android:apk:debug": "npm run mobile:sync && node scripts/run-gradle.mjs assembleDebug && node scripts/publish-android-debug.mjs",
     "android:aab:release": "npm run mobile:sync && node scripts/run-gradle.mjs bundleRelease",
     "android:devices": "node scripts/run-mobile-command.mjs adb devices -l",
     "android:accel-check": "node scripts/run-mobile-command.mjs emulator -accel-check",
     "android:emulator": "node scripts/run-mobile-command.mjs emulator -avd NexusFinance_API36",
-    "android:install:debug": "node scripts/run-mobile-command.mjs adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "android:install:debug": "node scripts/install-android-debug.mjs",
     "android:launch": "node scripts/run-mobile-command.mjs adb shell monkey -p com.nexusfinance.app 1"
   },
   "dependencies": {
