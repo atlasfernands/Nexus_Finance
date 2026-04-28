@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev:local": "tsx scripts/dev-local.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:ai": "vitest run api/analyze-finance.test.ts src/services/ai.test.ts",
     "mobile:build": "npm run build",
     "mobile:sync": "npm run mobile:build && node scripts/prepare-capacitor-assets.mjs && node scripts/run-mobile-command.mjs cap sync android",
     "android:open": "npm run mobile:sync && node scripts/run-mobile-command.mjs cap open android",
