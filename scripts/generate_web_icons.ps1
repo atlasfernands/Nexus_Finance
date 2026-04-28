@@ -34,7 +34,8 @@ function New-RoundedRectanglePath {
 
 function New-NexusBitmap {
     param(
-        [int]$Size
+        [int]$Size,
+        [switch]$FullBleed
     )
 
     $bitmap = New-Object System.Drawing.Bitmap $Size, $Size
@@ -43,29 +44,40 @@ function New-NexusBitmap {
     $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
     $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
     $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-    $graphics.Clear([System.Drawing.Color]::Transparent)
+    $graphics.Clear($(if ($FullBleed) { $green } else { [System.Drawing.Color]::Transparent }))
 
-    $padding = [Math]::Max([Math]::Round($Size * 0.06), 1)
-    $radius = [Math]::Round($Size * 0.22)
-    $path = New-RoundedRectanglePath -X $padding -Y $padding -Width ($Size - ($padding * 2)) -Height ($Size - ($padding * 2)) -Radius $radius
-    $backgroundBrush = New-Object System.Drawing.SolidBrush $green
+    $padding = if ($FullBleed) { 0 } else { [Math]::Max([Math]::Round($Size * 0.06), 1) }
+    $radius = if ($FullBleed) { 0 } else { [Math]::Round($Size * 0.22) }
+    $path = $null
+    $backgroundBrush = $null
     $strokeWidth = [Math]::Max($Size * 0.11, 2)
     $strokePen = New-Object System.Drawing.Pen($black, $strokeWidth)
     $strokePen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
     $strokePen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
     $strokePen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-    $leftX = $Size * 0.328
-    $rightX = $Size * 0.672
-    $topY = $Size * 0.305
-    $bottomY = $Size * 0.695
+    $leftX = if ($FullBleed) { $Size * 0.305 } else { $Size * 0.328 }
+    $rightX = if ($FullBleed) { $Size * 0.695 } else { $Size * 0.672 }
+    $topY = if ($FullBleed) { $Size * 0.24 } else { $Size * 0.305 }
+    $bottomY = if ($FullBleed) { $Size * 0.76 } else { $Size * 0.695 }
 
-    $graphics.FillPath($backgroundBrush, $path)
+    if (-not $FullBleed) {
+        $path = New-RoundedRectanglePath -X $padding -Y $padding -Width ($Size - ($padding * 2)) -Height ($Size - ($padding * 2)) -Radius $radius
+        $backgroundBrush = New-Object System.Drawing.SolidBrush $green
+        $graphics.FillPath($backgroundBrush, $path)
+    }
+
     $graphics.DrawLine($strokePen, $leftX, $bottomY, $leftX, $topY)
     $graphics.DrawLine($strokePen, $leftX, $topY, $rightX, $bottomY)
     $graphics.DrawLine($strokePen, $rightX, $bottomY, $rightX, $topY)
 
-    $path.Dispose()
-    $backgroundBrush.Dispose()
+    if ($path) {
+        $path.Dispose()
+    }
+
+    if ($backgroundBrush) {
+        $backgroundBrush.Dispose()
+    }
+
     $strokePen.Dispose()
     $graphics.Dispose()
 
@@ -73,7 +85,8 @@ function New-NexusBitmap {
 }
 
 foreach ($size in $sizes) {
-    $bitmap = New-NexusBitmap -Size $size
+    $fullBleed = $size -ge 180
+    $bitmap = New-NexusBitmap -Size $size -FullBleed:$fullBleed
 
     switch ($size) {
         16 { $fileName = "favicon-16x16.png" }

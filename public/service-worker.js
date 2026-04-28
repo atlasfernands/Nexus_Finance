@@ -1,4 +1,4 @@
-const CACHE_NAME = "nexus-finance-shell-v1";
+const CACHE_NAME = "nexus-finance-shell-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
