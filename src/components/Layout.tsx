@@ -19,6 +19,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import { TransactionStatus } from "../types";
 import { cn } from "../lib/utils";
 import { useAuth } from "../features/auth/AuthContext";
 import { useFinance } from "../features/finance/FinanceContext";
@@ -81,7 +82,7 @@ export default function Layout({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mutedReminderIds, setMutedReminderIds] = useState<Set<string>>(() => new Set());
   const [notificationActionError, setNotificationActionError] = useState("");
-  const { state } = useFinance();
+  const { state, updateTransaction } = useFinance();
   const { logout, session, user } = useAuth();
   const { upcomingPendingExpenses } = useFinanceStats();
 
@@ -227,6 +228,24 @@ export default function Layout({
       });
       setNotificationActionError(
         caughtError instanceof Error ? caughtError.message : "Nao foi possivel silenciar esta conta agora."
+      );
+    }
+  };
+
+  const markNotificationAsPaid = (transactionId: string) => {
+    const transaction = state.transactions.find((item) => item.id === transactionId);
+
+    if (!transaction) {
+      return;
+    }
+
+    setNotificationActionError("");
+
+    try {
+      updateTransaction({ ...transaction, status: TransactionStatus.PAID });
+    } catch (caughtError) {
+      setNotificationActionError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel marcar esta conta como paga."
       );
     }
   };
@@ -502,15 +521,24 @@ export default function Layout({
                             : "Pagamento coberto"}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void muteReminder(notification.id);
-                        }}
-                        className="mt-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 transition-colors hover:text-brand-yellow"
-                      >
-                        Nao avisar esta conta
-                      </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => markNotificationAsPaid(notification.id)}
+                          className="rounded-full border border-brand-green/30 bg-brand-green/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-brand-green transition-colors hover:border-brand-green hover:bg-brand-green/20"
+                        >
+                          Marcar como pago
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void muteReminder(notification.id);
+                          }}
+                          className="rounded-full border border-brand-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-slate-500 transition-colors hover:border-brand-yellow/30 hover:text-brand-yellow"
+                        >
+                          Nao avisar esta conta
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

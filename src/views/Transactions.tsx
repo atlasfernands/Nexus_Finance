@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { Check, Edit2, Plus, Search, Trash2, X } from "lucide-react";
+import { Check, Plus, Search, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useFinance } from "../features/finance/FinanceContext";
 import {
@@ -156,6 +156,18 @@ export default function Transactions() {
     }
   };
 
+  const handleTransactionRowKeyDown = (
+    event: React.KeyboardEvent<HTMLTableRowElement>,
+    transaction: Transaction
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    openEdit(transaction);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 rounded-xl border border-brand-border bg-brand-card p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -210,12 +222,20 @@ export default function Transactions() {
                 <th className="px-4 py-2 text-right">Valor (R$)</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2 text-right">Saldo Acumulado (R$)</th>
-                <th className="px-4 py-2 text-center">Acoes</th>
+                <th className="px-4 py-2 text-center">Excluir</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border/50">
               {filteredTransactions.map((transaction) => (
-                <tr key={transaction.id} className="group transition-colors hover:bg-slate-800/30">
+                <tr
+                  key={transaction.id}
+                  role="button"
+                  tabIndex={0}
+                  title={`Editar lancamento ${transaction.description}`}
+                  onClick={() => openEdit(transaction)}
+                  onKeyDown={(event) => handleTransactionRowKeyDown(event, transaction)}
+                  className="group cursor-pointer transition-colors hover:bg-slate-800/30 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-green/60"
+                >
                   <td className="px-4 py-3 font-mono text-slate-400">{transaction.date}</td>
                   <td className="px-4 py-3">
                     <span className="font-medium text-white">{transaction.description}</span>
@@ -259,18 +279,16 @@ export default function Transactions() {
                       : "-"}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex items-center justify-center">
                       <button
-                        onClick={() => openEdit(transaction)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-slate-700 hover:text-white"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteTransaction(transaction.id);
+                        }}
+                        aria-label={`Excluir lancamento ${transaction.description}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-brand-border bg-slate-900/70 text-slate-300 transition-colors hover:border-brand-red/30 hover:bg-brand-red/10 hover:text-brand-red"
                       >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
-                        onClick={() => deleteTransaction(transaction.id)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-brand-red/10 hover:text-brand-red"
-                      >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>

@@ -3,17 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
-import { CheckCircle, Home, Zap } from "lucide-react";
+import React, { useState } from "react";
+import { CheckCircle, Home, X, Zap } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
 import { formatCurrency } from "../lib/utils";
-import { TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
+import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export default function HomeModule() {
   const { updateTransaction } = useFinance();
   const { currentPeriodLabel, transactions } = useFinanceStats();
+  const [selectedBill, setSelectedBill] = useState<Transaction | null>(null);
+  const [editedBillAmount, setEditedBillAmount] = useState("");
+  const [billEditorError, setBillEditorError] = useState("");
 
   const homeTransactions = transactions.filter(
     (transaction) => transaction.subcategory === TransactionSubcategory.HOME
@@ -48,11 +52,61 @@ export default function HomeModule() {
 
   const colors = ["#00FF9D", "#3B82F6", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#10B981"];
 
+  const closeBillEditor = () => {
+    setSelectedBill(null);
+    setEditedBillAmount("");
+    setBillEditorError("");
+  };
+
+  const openBillEditor = (bill: Transaction) => {
+    setSelectedBill(bill);
+    setEditedBillAmount(String(bill.amount));
+    setBillEditorError("");
+  };
+
   const markAsPaid = (id: string) => {
     const transaction = transactions.find((item) => item.id === id);
     if (transaction) {
       updateTransaction({ ...transaction, status: TransactionStatus.PAID });
     }
+  };
+
+  const saveSelectedBill = (statusOverride?: TransactionStatus) => {
+    if (!selectedBill) {
+      return;
+    }
+
+    const parsedAmount = Number(editedBillAmount);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      setBillEditorError("Informe um valor valido para a conta.");
+      return;
+    }
+
+    try {
+      updateTransaction({
+        ...selectedBill,
+        amount: parsedAmount,
+        status: statusOverride ?? selectedBill.status,
+      });
+      closeBillEditor();
+    } catch (caughtError) {
+      setBillEditorError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel atualizar esta conta agora."
+      );
+    }
+  };
+
+  const handlePendingBillKeyDown = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    bill: Transaction
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    openBillEditor(bill);
   };
 
   return (
@@ -110,7 +164,14 @@ export default function HomeModule() {
               </div>
             )}
             {pendingBills.map((bill) => (
-              <div key={bill.id} className="group rounded-lg border border-brand-border bg-slate-900 p-3">
+              <div
+                key={bill.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openBillEditor(bill)}
+                onKeyDown={(event) => handlePendingBillKeyDown(event, bill)}
+                className="group w-full rounded-lg border border-brand-border bg-slate-900 p-3 text-left transition-colors hover:border-brand-green/30 hover:bg-slate-800/90"
+              >
                 <div className="mb-2 flex items-start justify-between">
                   <span className="text-sm font-medium text-white">{bill.description}</span>
                   <span className="text-xs text-brand-red">{formatCurrency(bill.amount)}</span>
@@ -120,12 +181,19 @@ export default function HomeModule() {
                     {bill.date}
                   </span>
                   <button
-                    onClick={() => markAsPaid(bill.id)}
-                    className="text-[10px] font-bold uppercase tracking-tighter text-brand-green opacity-0 transition-opacity hover:underline group-hover:opacity-100"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      markAsPaid(bill.id);
+                    }}
+                    className="inline-flex min-h-8 items-center rounded-full border border-brand-green/30 bg-brand-green/10 px-3 text-[10px] font-bold uppercase tracking-tighter text-brand-green transition-colors hover:border-brand-green hover:bg-brand-green/20 hover:underline"
                   >
                     Marcar Pago
                   </button>
                 </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Toque na conta para ajustar o valor, como juros ou multa.
+                </p>
               </div>
             ))}
           </div>
@@ -137,6 +205,89 @@ export default function HomeModule() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedBill && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeBillEditor}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              className="relative w-full max-w-md rounded-2xl border border-brand-border bg-brand-card p-6 shadow-2xl"
+            >
+              <div className="mb-5 flex items-start justify-between gap-4 border-b border-brand-border pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white">Editar Conta Pendente</h3>
+                  <p className="mt-1 text-sm text-slate-400">{selectedBill.description}</p>
+                  <p className="mt-1 text-xs uppercase tracking-widest text-slate-500">
+                    {selectedBill.date} - {selectedBill.category}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeBillEditor}
+                  className="rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+                  aria-label="Fechar editor da conta"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">
+                    Valor atualizado
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editedBillAmount}
+                    onChange={(event) => {
+                      setEditedBillAmount(event.target.value);
+                      if (billEditorError) {
+                        setBillEditorError("");
+                      }
+                    }}
+                    className="w-full rounded-xl border border-brand-border bg-slate-900 px-4 py-3 font-mono text-white focus:border-brand-green focus:outline-none"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Use este campo para ajustar juros, multa ou qualquer diferenca no valor.
+                  </p>
+                </div>
+
+                {billEditorError && (
+                  <div className="rounded-xl border border-brand-red/20 bg-brand-red/10 px-4 py-3 text-sm text-brand-red">
+                    {billEditorError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <button type="button" onClick={closeBillEditor} className="btn-secondary">
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={() => saveSelectedBill()} className="btn-primary">
+                    Salvar Valor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveSelectedBill(TransactionStatus.PAID)}
+                    className="rounded-lg border border-brand-green/30 bg-brand-green/10 px-4 py-2 font-semibold text-brand-green transition-colors hover:border-brand-green hover:bg-brand-green/20"
+                  >
+                    Marcar Pago
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <div className="trading-card">
         <h3 className="mb-6 font-bold text-white">Sugestao de Alocacao</h3>
