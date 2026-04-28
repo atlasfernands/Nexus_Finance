@@ -41,6 +41,7 @@ interface ImportTransactionsOptions {
 
 interface FinanceContextValue {
   addTransaction: (transaction: Transaction, options?: SaveTransactionOptions) => void;
+  addTransactions: (transactions: Transaction[], options?: SaveTransactionOptions) => void;
   importTransactions: (
     transactions: Transaction[],
     options?: ImportTransactionsOptions
@@ -154,6 +155,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     dispatch({ type: "ADD_TRANSACTION", payload: transaction });
+  };
+
+  const addTransactions = (transactions: Transaction[], options?: SaveTransactionOptions) => {
+    if (transactions.length === 0) {
+      return;
+    }
+
+    const { duplicates } = partitionTransactionsByDuplicates(transactions, state.transactions);
+
+    if (duplicates.length > 0 && !options?.allowDuplicate) {
+      throw new Error(buildDuplicateTransactionMessage(duplicates[0]));
+    }
+
+    dispatch({
+      type: "SET_TRANSACTIONS",
+      payload: mergeTransactions(state.transactions, transactions),
+    });
   };
 
   const updateTransaction = (transaction: Transaction, options?: SaveTransactionOptions) => {
@@ -270,7 +288,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   return (
     <FinanceContext.Provider
-      value={{ addTransaction, importTransactions, isReady, state, dispatch, updateTransaction }}
+      value={{ addTransaction, addTransactions, importTransactions, isReady, state, dispatch, updateTransaction }}
     >
       {children}
     </FinanceContext.Provider>

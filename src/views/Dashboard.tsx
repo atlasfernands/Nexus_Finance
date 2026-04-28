@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from "react";
-import { AlertTriangle, Calendar, DollarSign, Target, TrendingDown, TrendingUp } from "lucide-react";
+import React, { useState } from "react";
+import { AlertTriangle, Calendar, DollarSign, Plus, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
+import TransactionFormModal from "../features/transactions/TransactionFormModal";
 import { cn, formatCurrency } from "../lib/utils";
 
 const KPI_CARD_VARIANTS = {
@@ -17,6 +18,7 @@ const KPI_CARD_VARIANTS = {
 };
 
 export default function Dashboard() {
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const {
     currentPeriodLabel,
     previousPeriodLabel,
@@ -285,6 +287,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, scale: 0.9, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        transition={{ delay: 0.45, type: "spring", stiffness: 280, damping: 22 }}
+        onClick={() => setIsQuickAddOpen(true)}
+        aria-label="Novo lancamento rapido"
+        className="fixed z-20 flex h-16 w-16 items-center justify-center rounded-full border border-black/10 bg-brand-green text-black shadow-[0_18px_45px_rgba(0,255,157,0.24)] outline-none transition-shadow hover:shadow-[0_22px_55px_rgba(0,255,157,0.35)] focus:ring-4 focus:ring-brand-green/25 sm:h-[72px] sm:w-[72px]"
+        style={{
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)",
+          right: "calc(env(safe-area-inset-right, 0px) + 1rem)",
+        }}
+      >
+        <Plus size={30} strokeWidth={3} />
+      </motion.button>
+
+      <TransactionFormModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+      />
     </div>
   );
 }
