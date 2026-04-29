@@ -368,12 +368,12 @@ export default function ImportTransactions() {
                 <p className="mt-3 text-sm leading-relaxed text-slate-300">
                   Se voce usa ChatGPT, Gemini ou outra IA no celular, basta baixar o modelo CSV, copiar o prompt
                   abaixo e trocar pelos seus recebimentos e contas fixas. Depois, e so pedir para a IA gerar o arquivo
-                  no formato correto para importar no Nexus Finance.
+                  CSV no formato correto para importar no Nexus Finance.
                 </p>
                 <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
                   <Smartphone size={14} className="text-brand-green" />
                   Funciona muito bem no celular para montar sua planilha rapido. So lembre de pedir que a IA responda
-                  apenas com o CSV final, sem explicacoes, titulos ou bloco de codigo.
+                  apenas com o conteudo final do arquivo CSV, sem explicacoes, titulos ou bloco de codigo.
                 </div>
               </div>
 

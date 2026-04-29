@@ -76,7 +76,8 @@ describe("ImportService", () => {
     const prompt = buildCsvImportAiPromptTemplate();
 
     expect(prompt).toContain(CSV_IMPORT_TEMPLATE_HEADER);
-    expect(prompt).toContain("Responda somente com o conteudo bruto do CSV.");
+    expect(prompt).toContain("crie um arquivo CSV completo");
+    expect(prompt).toContain("conteudo de um arquivo CSV valido");
     expect(prompt).toContain("Pendente, Pago ou Recebido");
     expect(prompt).toContain("Contas fixas de saida:");
     expect(prompt).toContain("Recebimentos fixos:");
