@@ -49,7 +49,7 @@ describe("transactionDuplicates", () => {
 
   it("detects duplicates against the current ledger while ignoring the edited id", () => {
     const existing = createTransaction({ id: "tx-1" });
-    const edited = createTransaction({ id: "tx-1", status: TransactionStatus.COMPLETED });
+    const edited = createTransaction({ id: "tx-1", status: TransactionStatus.PAID });
     const conflicting = createTransaction({ id: "tx-2" });
 
     expect(findDuplicateTransaction(edited, [existing], { ignoreId: edited.id })).toBeNull();

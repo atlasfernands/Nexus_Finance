@@ -96,11 +96,20 @@ function normalizeRemoteTransactionStatus(
     return TransactionStatus.CANCELLED;
   }
 
-  if (normalized.includes("pago") || normalized.includes("paid")) {
+  if (
+    normalized.includes("pago") ||
+    normalized.includes("paid") ||
+    normalized.includes("recebido") ||
+    normalized.includes("received") ||
+    normalized.includes("realizado") ||
+    normalized.includes("feito") ||
+    normalized.includes("confirmado") ||
+    normalized.includes("completed")
+  ) {
     return TransactionStatus.PAID;
   }
 
-  return TransactionStatus.COMPLETED;
+  return TransactionStatus.PAID;
 }
 
 function normalizeRemoteTransactionSubcategory(

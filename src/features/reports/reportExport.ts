@@ -37,9 +37,9 @@ function formatTransactionTypeLabel(type: TransactionType) {
   return type === TransactionType.INCOME ? "Entrada" : "Saida";
 }
 
-function formatTransactionStatusLabel(status: TransactionStatus) {
+function formatTransactionStatusLabel(status: TransactionStatus, type: TransactionType) {
   if (status === TransactionStatus.PAID) {
-    return "Pago";
+    return type === TransactionType.INCOME ? "Recebido" : "Pago";
   }
 
   if (status === TransactionStatus.PENDING) {
@@ -50,7 +50,7 @@ function formatTransactionStatusLabel(status: TransactionStatus) {
     return "Cancelado";
   }
 
-  return "Realizado";
+  return "Pago / Recebido";
 }
 
 function formatSignedCurrency(amount: number, type: TransactionType) {
@@ -75,7 +75,7 @@ function renderTransactionTableRows(items: Transaction[]) {
           <td>${escapeHtml(transaction.category)}</td>
           <td>${escapeHtml(formatTransactionTypeLabel(transaction.type))}</td>
           <td class="value">${escapeHtml(formatSignedCurrency(transaction.amount, transaction.type))}</td>
-          <td>${escapeHtml(formatTransactionStatusLabel(transaction.status))}</td>
+          <td>${escapeHtml(formatTransactionStatusLabel(transaction.status, transaction.type))}</td>
           <td class="value">${escapeHtml(formatBalanceValue(transaction.runningBalance))}</td>
         </tr>
       `

@@ -86,8 +86,7 @@ export function useFinanceStats() {
   );
   const sortedCurrentPeriodTransactions = sortTransactionsByDate(currentPeriodTransactions);
   const realizedPeriodTransactions = currentPeriodTransactions.filter(
-    (transaction) =>
-      transaction.status === TransactionStatus.COMPLETED || transaction.status === TransactionStatus.PAID
+    (transaction) => transaction.status === TransactionStatus.PAID
   );
   const pendingPeriodTransactions = currentPeriodTransactions.filter(
     (transaction) => transaction.status === TransactionStatus.PENDING
@@ -203,8 +202,7 @@ export function useFinanceStats() {
     .filter(
       (transaction) =>
         transaction.subcategory === TransactionSubcategory.STORE &&
-        (transaction.status === TransactionStatus.COMPLETED ||
-          transaction.status === TransactionStatus.PAID)
+        transaction.status === TransactionStatus.PAID
     )
     .reduce(
       (sum, transaction) =>

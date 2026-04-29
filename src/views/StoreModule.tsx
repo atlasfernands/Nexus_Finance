@@ -22,17 +22,13 @@ export default function StoreModule() {
   const sales = storeTransactions
     .filter(
       (transaction) =>
-        transaction.type === TransactionType.INCOME &&
-        (transaction.status === TransactionStatus.PAID ||
-          transaction.status === TransactionStatus.COMPLETED)
+        transaction.type === TransactionType.INCOME && transaction.status === TransactionStatus.PAID
     )
     .reduce((sum, transaction) => sum + transaction.amount, 0);
   const costs = storeTransactions
     .filter(
       (transaction) =>
-        transaction.type === TransactionType.EXPENSE &&
-        (transaction.status === TransactionStatus.PAID ||
-          transaction.status === TransactionStatus.COMPLETED)
+        transaction.type === TransactionType.EXPENSE && transaction.status === TransactionStatus.PAID
     )
     .reduce((sum, transaction) => sum + transaction.amount, 0);
   const marginRaw = sales - costs;

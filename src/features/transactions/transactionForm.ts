@@ -5,9 +5,17 @@ export function formatTransactionTypeLabel(type: TransactionType) {
   return type === TransactionType.INCOME ? "Entrada" : "Saida";
 }
 
-export function formatTransactionStatusLabel(status: TransactionStatus) {
+export function formatTransactionStatusLabel(status: TransactionStatus, type?: TransactionType) {
   if (status === TransactionStatus.PAID) {
-    return "Pago";
+    if (type === TransactionType.INCOME) {
+      return "Recebido";
+    }
+
+    if (type === TransactionType.EXPENSE) {
+      return "Pago";
+    }
+
+    return "Pago / Recebido";
   }
 
   if (status === TransactionStatus.PENDING) {
@@ -18,7 +26,7 @@ export function formatTransactionStatusLabel(status: TransactionStatus) {
     return "Cancelado";
   }
 
-  return "Realizado";
+  return "Pago / Recebido";
 }
 
 export function formatSignedCurrency(value: number, isNegative: boolean) {

@@ -162,15 +162,14 @@ export default function Transactions() {
                     <div
                       className={cn(
                         "inline-flex rounded px-2 py-0.5 text-[10px] font-bold",
-                        transaction.status === TransactionStatus.PAID ||
-                          transaction.status === TransactionStatus.COMPLETED
+                        transaction.status === TransactionStatus.PAID
                           ? "bg-brand-green/10 text-brand-green"
                           : transaction.status === TransactionStatus.PENDING
                             ? "bg-brand-yellow/10 text-brand-yellow"
                             : "bg-brand-red/10 text-brand-red"
                       )}
                     >
-                      {formatTransactionStatusLabel(transaction.status)}
+                      {formatTransactionStatusLabel(transaction.status, transaction.type)}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-slate-300">

@@ -23,6 +23,113 @@ export interface ColumnMapping {
   status?: string;
 }
 
+export const CSV_IMPORT_TEMPLATE_DOWNLOAD_URL = "/modelo-importacao-nexus-finance.csv";
+export const CSV_IMPORT_TEMPLATE_HEADER = "data,descricao,categoria,tipo,valor,status,subcategoria,saldo_acumulado";
+export const CSV_IMPORT_TEMPLATE_SAMPLE_ROWS = [
+  "01/04/2026,Salario principal,Receitas,Entrada,3500.00,Recebido,Casa,3500.00",
+  "03/04/2026,Conta de luz Abril,Moradia,Saida,189.90,Pago,Casa,3310.10",
+  "05/04/2026,Internet Loja,Operacao Loja,Saida,129.90,Pendente,Loja,3180.20",
+] as const;
+
+export const CSV_IMPORT_TEMPLATE_COLUMNS = [
+  {
+    key: "data",
+    required: true,
+    description: "Data do lancamento",
+    acceptedValues: "DD/MM/YYYY",
+    example: "28/04/2026",
+  },
+  {
+    key: "descricao",
+    required: true,
+    description: "Nome unitario do lancamento",
+    acceptedValues: "Ex.: Conta de luz Abril",
+    example: "Conta de luz Abril",
+  },
+  {
+    key: "categoria",
+    required: true,
+    description: "Grupo abrangente para relatorios",
+    acceptedValues: "Ex.: Moradia, Alimentacao, Vendas",
+    example: "Moradia",
+  },
+  {
+    key: "tipo",
+    required: true,
+    description: "Direcao financeira",
+    acceptedValues: "Entrada ou Saida",
+    example: "Saida",
+  },
+  {
+    key: "valor",
+    required: true,
+    description: "Valor monetario",
+    acceptedValues: "189.90, 189,90, R$ 189,90 ou (R$ 189,90)",
+    example: "189.90",
+  },
+  {
+    key: "status",
+    required: true,
+    description: "Situacao do lancamento",
+    acceptedValues: "Pendente, Pago ou Recebido",
+    example: "Pendente",
+  },
+  {
+    key: "subcategoria",
+    required: false,
+    description: "Contexto do modulo",
+    acceptedValues: "Casa ou Loja",
+    example: "Casa",
+  },
+  {
+    key: "saldo_acumulado",
+    required: false,
+    description: "Saldo logo apos o lancamento",
+    acceptedValues: "3810.10 ou R$ 3.810,10",
+    example: "3810.10",
+  },
+] as const;
+
+export function buildCsvImportAiPromptTemplate() {
+  const csvExample = [CSV_IMPORT_TEMPLATE_HEADER, ...CSV_IMPORT_TEMPLATE_SAMPLE_ROWS].join("\n");
+
+  return [
+    "Quero que voce monte um CSV pronto para importar no Nexus Finance.",
+    "",
+    "Regras obrigatorias:",
+    "1. Responda somente com o conteudo bruto do CSV.",
+    "2. Nao use markdown, bloco de codigo, explicacoes, titulos ou comentarios.",
+    `3. Use exatamente este cabecalho: ${CSV_IMPORT_TEMPLATE_HEADER}`,
+    "4. Datas devem ficar em DD/MM/YYYY.",
+    "5. Em tipo, use apenas Entrada ou Saida.",
+    "6. Em status, use apenas Pendente, Pago ou Recebido.",
+    "7. Em subcategoria, use apenas Casa ou Loja.",
+    "8. Em valor e saldo_acumulado, use ponto decimal e nao use simbolo de moeda.",
+    "9. Se eu nao informar saldo_acumulado, calcule linha a linha e preencha a coluna.",
+    "10. Categoria e o grupo abrangente. Descricao e o nome unitario da conta ou recebimento.",
+    "11. Se eu estiver usando uma IA no celular, mantenha a resposta curta e entregue apenas o CSV final.",
+    "",
+    "Periodo que quero montar:",
+    "[mes/ano ou intervalo desejado]",
+    "",
+    "Contas fixas de saida:",
+    "- [dia] | [descricao] | [categoria] | [valor] | [status inicial: Pendente ou Pago] | [subcategoria: Casa ou Loja]",
+    "- [dia] | [descricao] | [categoria] | [valor] | [status inicial: Pendente ou Pago] | [subcategoria: Casa ou Loja]",
+    "",
+    "Recebimentos fixos:",
+    "- [dia] | [descricao] | [categoria] | [valor] | [status inicial: Recebido ou Pendente] | [subcategoria: Casa ou Loja]",
+    "- [dia] | [descricao] | [categoria] | [valor] | [status inicial: Recebido ou Pendente] | [subcategoria: Casa ou Loja]",
+    "",
+    "Movimentos extras do periodo:",
+    "- [data completa] | [descricao] | [categoria] | [tipo] | [valor] | [status] | [subcategoria]",
+    "",
+    "Se alguma categoria nao for informada, use Outros.",
+    "",
+    "Exemplo exato do formato esperado:",
+    csvExample,
+  ].join("\n");
+}
+
 export class ImportService {
   private static readonly DEFAULT_MAPPING: ColumnMapping = {
     descricao: "descricao",
@@ -67,40 +174,7 @@ export class ImportService {
         header: false,
         skipEmptyLines: true,
         complete: (results) => {
-          let data = results.data;
-
-          data = data.filter((row): row is CsvRow => {
-            if (!Array.isArray(row) || row.length === 0) {
-              return false;
-            }
-
-            const rowText = row.join(" ").toLowerCase();
-            if (
-              rowText.includes("controle financeiro") ||
-              rowText.includes("lancamentos") ||
-              rowText.includes("📋")
-            ) {
-              return false;
-            }
-
-            if (row.length < 3) {
-              return false;
-            }
-
-            const firstCol = String(row[0] || "").trim();
-            const datePattern = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
-            return datePattern.test(firstCol);
-          });
-
-          if (data.length === 0) {
-            resolve([]);
-            return;
-          }
-
-          const headers = this.inferHeadersFromData(data[0]);
-          const rows = data.map((row) => this.createRawImportRow(row, headers));
-
-          resolve(rows);
+          resolve(this.buildRawRowsFromCsv(results.data));
         },
         error: (error) => {
           reject(new Error(`Erro ao processar CSV: ${error.message}`));
@@ -109,15 +183,50 @@ export class ImportService {
     });
   }
 
-  private static inferHeadersFromData(sampleRow: CsvRow): string[] {
-    const headers = ["data", "descricao", "categoria", "tipo", "valor", "status", "saldo_acumulado"];
+  private static buildRawRowsFromCsv(rows: CsvRow[]): RawImportRow[] {
+    const cleanedRows = rows.filter((row): row is CsvRow => this.isMeaningfulCsvRow(row));
 
-    if (sampleRow.length >= 7) {
+    if (cleanedRows.length === 0) {
+      return [];
+    }
+
+    const headerRowIndex = cleanedRows.findIndex((row, index) => index < 4 && this.isHeaderRow(row));
+
+    if (headerRowIndex >= 0) {
+      const headers = cleanedRows[headerRowIndex].map((cell, index) => {
+        const value = String(cell ?? "").trim().replace(/\s+/g, " ");
+        return value !== "" ? value : `col_${index + 1}`;
+      });
+
+      return cleanedRows
+        .slice(headerRowIndex + 1)
+        .filter((row) => this.hasRowContent(row))
+        .map((row) => this.createRawImportRow(row, headers));
+    }
+
+    const transactionRows = cleanedRows.filter((row) => this.isLikelyTransactionRow(row));
+
+    if (transactionRows.length === 0) {
+      return [];
+    }
+
+    const headers = this.inferHeadersFromData(transactionRows[0]);
+    return transactionRows.map((row) => this.createRawImportRow(row, headers));
+  }
+
+  private static inferHeadersFromData(sampleRow: CsvRow): string[] {
+    const headers = ["data", "descricao", "categoria", "tipo", "valor", "status", "subcategoria", "saldo_acumulado"];
+
+    if (sampleRow.length >= 8) {
       return headers;
     }
 
+    if (sampleRow.length >= 7) {
+      return headers.slice(0, 7);
+    }
+
     if (sampleRow.length >= 6) {
-      return headers.slice(0, 6);
+      return ["data", "descricao", "categoria", "tipo", "valor", "status"];
     }
 
     return sampleRow.map((_, index) => `col_${index + 1}`);
@@ -137,6 +246,72 @@ export class ImportService {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  private static hasRowContent(row: CsvRow): boolean {
+    return row.some((cell) => String(cell ?? "").trim() !== "");
+  }
+
+  private static isMeaningfulCsvRow(row: RawImportCell[] | undefined): row is CsvRow {
+    if (!Array.isArray(row) || row.length === 0 || !this.hasRowContent(row)) {
+      return false;
+    }
+
+    const rowText = row.join(" ").toLowerCase();
+    if (rowText.includes("controle financeiro") || rowText.includes("lancamentos") || rowText.includes("ðŸ“‹")) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static isLikelyTransactionRow(row: CsvRow): boolean {
+    if (row.length < 3) {
+      return false;
+    }
+
+    const firstCol = String(row[0] ?? "").trim();
+    const datePatterns = [
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+      /^\d{1,2}-\d{1,2}-\d{4}$/,
+      /^\d{4}\/\d{1,2}\/\d{1,2}$/,
+      /^\d{4}-\d{1,2}-\d{1,2}$/,
+      /^\d{1,2}\/\d{1,2}\/\d{2}$/,
+    ];
+
+    return datePatterns.some((pattern) => pattern.test(firstCol));
+  }
+
+  private static isHeaderRow(row: CsvRow): boolean {
+    const normalizedCells = row
+      .map((cell) => this.normalizeComparisonText(String(cell ?? "")))
+      .filter((cell) => cell !== "");
+
+    if (normalizedCells.length < 3) {
+      return false;
+    }
+
+    const matches = normalizedCells.filter((cell) =>
+      Object.values(this.COMMON_HEADERS).some((possibleHeaders) =>
+        possibleHeaders.some((possibleHeader) => {
+          const normalizedHeader = this.normalizeComparisonText(possibleHeader);
+          return (
+            cell === normalizedHeader ||
+            cell.includes(normalizedHeader) ||
+            normalizedHeader.includes(cell)
+          );
+        })
+      )
+    ).length;
+
+    return (
+      matches >= 3 &&
+      normalizedCells.some((cell) => cell.includes("data") || cell === "date") &&
+      normalizedCells.some((cell) => cell.includes("descr") || cell.includes("description")) &&
+      normalizedCells.some(
+        (cell) => cell.includes("valor") || cell.includes("amount") || cell.includes("price")
+      )
+    );
   }
 
   private static sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
@@ -200,13 +375,23 @@ export class ImportService {
 
   private static detectColumnMapping(sampleRow: RawImportRow): ColumnMapping {
     const mapping = { ...this.DEFAULT_MAPPING };
-    const headers = Object.keys(sampleRow).map((header) => header.toLowerCase().trim());
+    const headerEntries = Object.keys(sampleRow).map((header) => ({
+      original: header,
+      normalized: this.normalizeComparisonText(header),
+    }));
 
     for (const [field, possibleHeaders] of Object.entries(this.COMMON_HEADERS)) {
-      for (const header of headers) {
-        if (possibleHeaders.some((possibleHeader) => header.includes(possibleHeader) || possibleHeader.includes(header))) {
-          mapping[field as keyof ColumnMapping] =
-            Object.keys(sampleRow).find((key) => key.toLowerCase().trim() === header) || field;
+      for (const header of headerEntries) {
+        if (
+          possibleHeaders.some((possibleHeader) => {
+            const normalizedHeader = this.normalizeComparisonText(possibleHeader);
+            return (
+              header.normalized.includes(normalizedHeader) ||
+              normalizedHeader.includes(header.normalized)
+            );
+          })
+        ) {
+          mapping[field as keyof ColumnMapping] = header.original;
           break;
         }
       }
@@ -279,14 +464,20 @@ export class ImportService {
       }
     }
 
-    let status: Transaction["status"] = TransactionStatus.COMPLETED;
+    let status: Transaction["status"] = TransactionStatus.PAID;
     if (statusRaw) {
       const statusLower = this.normalizeComparisonText(statusRaw);
       if (statusLower.includes("pendente") || statusLower.includes("pending") || statusLower.includes("nao pago")) {
         status = TransactionStatus.PENDING;
+      } else if (statusLower.includes("cancelado") || statusLower.includes("cancelled")) {
+        status = TransactionStatus.CANCELLED;
       } else if (
         statusLower.includes("pago") ||
         statusLower.includes("paid") ||
+        statusLower.includes("recebido") ||
+        statusLower.includes("received") ||
+        statusLower.includes("confirmado") ||
+        statusLower.includes("completed") ||
         statusLower.includes("realizado") ||
         statusLower.includes("feito")
       ) {
@@ -318,6 +509,7 @@ export class ImportService {
     if (value === null || value === undefined) {
       return undefined;
     }
+
     return String(value).trim();
   }
 
@@ -397,7 +589,11 @@ export class ImportService {
         year = `20${year}`;
       }
 
-      const parsedDate = new Date(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10));
+      const parsedDate = new Date(
+        Number.parseInt(year, 10),
+        Number.parseInt(month, 10) - 1,
+        Number.parseInt(day, 10)
+      );
       if (this.isValidDate(parsedDate)) {
         return parsedDate.toLocaleDateString("pt-BR");
       }

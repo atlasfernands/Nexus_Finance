@@ -284,10 +284,13 @@ export default function TransactionFormModal({
                       onChange={(event) => updateForm({ status: event.target.value as TransactionStatus })}
                     >
                       <option value={TransactionStatus.PENDING}>Pendente</option>
-                      <option value={TransactionStatus.PAID}>Pago / Recebido</option>
-                      <option value={TransactionStatus.COMPLETED}>Confirmado</option>
-                      <option value={TransactionStatus.CANCELLED}>Cancelado</option>
+                      <option value={TransactionStatus.PAID}>
+                        {formData.type === TransactionType.INCOME ? "Recebido" : "Pago"}
+                      </option>
                     </select>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Novos lancamentos usam apenas status pendente ou liquidado.
+                    </p>
                   </div>
 
                   <div className="col-span-2">

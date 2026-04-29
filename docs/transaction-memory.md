@@ -10,7 +10,7 @@ Evitar que o usuario precise escrever categorias exatamente iguais a lancamentos
 - O usuario pode escolher uma categoria existente ou usar `+ Criar nova categoria`.
 - Ao salvar, a categoria nova entra na memoria da conta.
 - `Descricao` usa `datalist` para sugerir descricoes ja usadas.
-- Importacoes CSV/XLSX tambem alimentam a memoria.
+- Importacoes CSV tambem alimentam a memoria.
 - Edicoes de lancamento tambem atualizam a memoria.
 
 ## Persistencia

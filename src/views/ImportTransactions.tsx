@@ -3,8 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle2, Import as ImportIcon, Upload } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Download,
+  FileSpreadsheet,
+  Import as ImportIcon,
+  Smartphone,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader } from "../components/ui/Card";
@@ -12,7 +23,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { useFinance } from "../features/finance/FinanceContext";
 import { DuplicateTransactionMatch, partitionTransactionsByDuplicates } from "../lib/transactionDuplicates";
 import { cn, formatCurrency } from "../lib/utils";
-import { ImportResult, ImportService } from "../services/import";
+import {
+  buildCsvImportAiPromptTemplate,
+  CSV_IMPORT_TEMPLATE_COLUMNS,
+  CSV_IMPORT_TEMPLATE_DOWNLOAD_URL,
+  ImportResult,
+  ImportService,
+} from "../services/import";
 import { Transaction, TransactionStatus, TransactionType } from "../types";
 
 interface ImportPreviewResult extends Omit<ImportResult, "transactions"> {
@@ -25,9 +42,9 @@ function formatTransactionTypeLabel(type: TransactionType) {
   return type === TransactionType.INCOME ? "Entrada" : "Saida";
 }
 
-function formatTransactionStatusLabel(status: TransactionStatus) {
+function formatTransactionStatusLabel(status: TransactionStatus, type: TransactionType) {
   if (status === TransactionStatus.PAID) {
-    return "Pago";
+    return type === TransactionType.INCOME ? "Recebido" : "Pago";
   }
 
   if (status === TransactionStatus.PENDING) {
@@ -38,7 +55,7 @@ function formatTransactionStatusLabel(status: TransactionStatus) {
     return "Cancelado";
   }
 
-  return "Realizado";
+  return "Pago / Recebido";
 }
 
 function formatSignedCurrency(value: number, isNegative: boolean) {
@@ -63,7 +80,9 @@ export default function ImportTransactions() {
   const [importResult, setImportResult] = useState<ImportPreviewResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const aiPromptTemplate = useMemo(() => buildCsvImportAiPromptTemplate(), []);
 
   const selectedDuplicates = importResult
     ? importResult.duplicateMatches.filter((duplicate) =>
@@ -214,6 +233,16 @@ export default function ImportTransactions() {
     });
   };
 
+  const copyPromptTemplate = async () => {
+    try {
+      await navigator.clipboard.writeText(aiPromptTemplate);
+      setPromptCopied(true);
+      window.setTimeout(() => setPromptCopied(false), 2200);
+    } catch {
+      alert("Nao foi possivel copiar o prompt agora. Tente selecionar o texto manualmente.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -256,6 +285,124 @@ export default function ImportTransactions() {
             </div>
             <p className="font-medium text-white">Clique para selecionar ou arraste o arquivo</p>
             <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-500">Formato: CSV</p>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+            <div className="rounded-2xl border border-brand-green/20 bg-brand-green/5 p-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl border border-brand-green/20 bg-brand-green/10 p-2">
+                  <FileSpreadsheet size={20} className="text-brand-green" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-white">Modelo recomendado</h4>
+                  <div className="mt-3 space-y-2 text-sm leading-relaxed text-slate-300">
+                    <p>
+                      <span className="font-semibold text-white">Categoria</span> e o grupo abrangente do lancamento.
+                    </p>
+                    <p>
+                      <span className="font-semibold text-white">Descricao</span> e o item unitario que voce quer
+                      identificar depois.
+                    </p>
+                    <p>
+                      Na coluna `status`, use <span className="font-semibold text-white">Pendente</span>,
+                      <span className="font-semibold text-white"> Pago</span> ou
+                      <span className="font-semibold text-white"> Recebido</span>.
+                    </p>
+                    <p>
+                      Em `subcategoria`, use <span className="font-semibold text-white">Casa</span> ou
+                      <span className="font-semibold text-white"> Loja</span> quando quiser definir o modulo.
+                    </p>
+                  </div>
+
+                  <a
+                    href={CSV_IMPORT_TEMPLATE_DOWNLOAD_URL}
+                    download
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-green px-4 py-2 text-sm font-semibold text-black transition hover:bg-brand-green/90"
+                  >
+                    <Download size={16} /> Baixar modelo CSV
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-brand-border">
+              <div className="border-b border-brand-border bg-slate-900/70 px-4 py-3">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-white">Campos aceitos</h4>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Coluna</TableHead>
+                      <TableHead>Obrigatoria</TableHead>
+                      <TableHead>Uso</TableHead>
+                      <TableHead>Formato aceito</TableHead>
+                      <TableHead>Exemplo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {CSV_IMPORT_TEMPLATE_COLUMNS.map((column) => (
+                      <TableRow key={column.key}>
+                        <TableCell className="font-mono text-white">{column.key}</TableCell>
+                        <TableCell className={column.required ? "text-brand-green" : "text-slate-400"}>
+                          {column.required ? "Sim" : "Opcional"}
+                        </TableCell>
+                        <TableCell className="text-slate-300">{column.description}</TableCell>
+                        <TableCell className="text-slate-300">{column.acceptedValues}</TableCell>
+                        <TableCell className="font-mono text-slate-300">{column.example}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-brand-yellow/20 bg-brand-yellow/5 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 text-brand-yellow">
+                  <Sparkles size={18} />
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-white">Prompt pronto para IA</h4>
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                  Se voce usa ChatGPT, Gemini ou outra IA no celular, basta baixar o modelo CSV, copiar o prompt
+                  abaixo e trocar pelos seus recebimentos e contas fixas. Depois, e so pedir para a IA gerar o arquivo
+                  no formato correto para importar no Nexus Finance.
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                  <Smartphone size={14} className="text-brand-green" />
+                  Funciona muito bem no celular para montar sua planilha rapido. So lembre de pedir que a IA responda
+                  apenas com o CSV final, sem explicacoes, titulos ou bloco de codigo.
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={promptCopied ? "primary" : "secondary"}
+                  onClick={() => {
+                    void copyPromptTemplate();
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <Copy size={16} /> {promptCopied ? "Prompt copiado" : "Copiar prompt"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-brand-border bg-slate-950/80">
+              <div className="border-b border-brand-border px-4 py-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Cole este prompt na sua IA e substitua pelos seus dados
+                </p>
+              </div>
+              <textarea
+                readOnly
+                value={aiPromptTemplate}
+                className="min-h-[360px] w-full resize-y border-0 bg-transparent px-4 py-4 font-mono text-xs leading-6 text-slate-300 focus:outline-none"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -392,7 +539,7 @@ export default function ImportTransactions() {
                                 {formatSignedCurrency(item.amount, item.type === TransactionType.EXPENSE)}
                               </TableCell>
                               <TableCell className="text-slate-300">
-                                {formatTransactionStatusLabel(item.status)}
+                                {formatTransactionStatusLabel(item.status, item.type)}
                               </TableCell>
                               <TableCell className="font-mono text-slate-300">
                                 {getDisplayedBalance(item)}
