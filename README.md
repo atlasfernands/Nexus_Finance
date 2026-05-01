@@ -79,7 +79,7 @@ O arquivo `vercel.json` ja foi incluido com fallback de SPA e headers de seguran
 - O projeto esta preparado para PWA e Android nativo via Capacitor.
 - A documentacao de implementacao e release fica em `docs/mobile`.
 - O APK debug ja compila localmente.
-- O nome do APK sempre carrega a versao atual, por exemplo `nexus-finance-1.1.0-debug.apk`.
+- O nome do APK sempre carrega a versao atual, por exemplo `nexus-finance-1.1.1-debug.apk`.
 - O APK separado para testes fica em `D:\NexusFinance-APK`.
 - As ferramentas Android ficam em `D:\DevTools\NexusAndroid` para nao ocupar o `C:\`.
 - Para sincronizar o build web com o Android:

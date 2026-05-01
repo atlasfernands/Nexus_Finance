@@ -1,10 +1,10 @@
-const androidVersion = "1.1.0";
+const androidVersion = "1.1.1";
 
 export const mobileRelease = {
   android: {
     apkUrl: `/downloads/nexus-finance-${androidVersion}-debug.apk`,
     version: androidVersion,
-    updatedAt: "2026-04-28",
+    updatedAt: "2026-04-30",
   },
   pwaGuideUrl: "https://github.com/atlasfernands/Nexus_Finance/blob/main/docs/mobile/pwa-installation.md",
   releasesUrl: "https://github.com/atlasfernands/Nexus_Finance/releases",
