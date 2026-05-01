@@ -1,6 +1,6 @@
 # Security Hardening
 
-Atualizado em: 2026-04-27
+Atualizado em: 2026-05-01
 
 ## Correcoes aplicadas
 
@@ -13,6 +13,22 @@ Atualizado em: 2026-04-27
 - Migration `20260427135000_security_hardening.sql` aplicada no Supabase remoto.
 - Dependencias nao usadas `express`, `dotenv` e `@types/express` removidas.
 - `npm audit --audit-level=moderate` voltou sem vulnerabilidades.
+- Rotas comuns de arquivos sensiveis (`/backup.sql`, `/db.sql`, `/dump.sql`, `/database.sql`, `/.env`) agora retornam 404 real via `api/not-found.ts` antes do fallback SPA da Vercel.
+
+## Scan externo 2026-05-01
+
+Relatorio analisado:
+
+```text
+d:\Vscode\ferramentas\site-security-tester\reports\web_scan_20260501_124045.html
+```
+
+Resultado da triagem:
+
+- `Direct Sensitive File Exposure` em `/backup.sql` e `/db.sql`: falso positivo. As URLs respondiam `200` porque o fallback SPA da Vercel entregava `index.html`, nao um dump SQL.
+- Correcao aplicada mesmo assim: caminhos sensiveis conhecidos agora sao reescritos para `api/not-found`, que retorna `404`, `Cache-Control: no-store` e `X-Content-Type-Options: nosniff`.
+- `CORS Misconfiguration`: confirmado `Access-Control-Allow-Origin: *` na pagina estatica. Sem `Access-Control-Allow-Credentials`, o risco pratico e baixo para a home, mas fica como item de hardening futuro.
+- `Content-Security-Policy`: `script-src` segue sem `unsafe-inline`; a permissividade atual esta em `style-src 'unsafe-inline'` e em `data:` para fontes/imagens/downloads. Manter por enquanto para nao quebrar UI/exportacoes; endurecer em rodada propria.
 
 ## Supabase advisors
 
@@ -35,6 +51,12 @@ O repo ja tem headers de seguranca. No painel da Vercel, vale habilitar:
 - Attack Challenge Mode apenas durante ataque ou pico suspeito.
 - Rate limit para `/api/analyze-finance`, por exemplo 10 requisicoes por minuto por IP.
 - Regra para bloquear scanners comuns em caminhos como `/wp-admin`, `/wp-login.php`, `/.env`, `/phpmyadmin`.
+
+## Proximos hardenings recomendados
+
+- Avaliar se o `Access-Control-Allow-Origin: *` da pagina estatica pode ser removido ou restringido por configuracao da Vercel sem quebrar assets/cache.
+- Refatorar os poucos `style={{ ... }}` restantes para classes/CSS e entao testar a remocao de `unsafe-inline` em `style-src`.
+- Revisar usos de `data:` em downloads/exportacoes antes de remover essa permissao da CSP.
 
 ## Checklist antes de publicar
 
