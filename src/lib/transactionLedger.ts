@@ -25,6 +25,10 @@ export function sortTransactionsByDate(transactions: Transaction[]): Transaction
       return dateComparison;
     }
 
+    if (left.type !== right.type) {
+      return left.type === TransactionType.INCOME ? -1 : 1;
+    }
+
     if (typeof left.sourceOrder === "number" && typeof right.sourceOrder === "number") {
       return left.sourceOrder - right.sourceOrder;
     }

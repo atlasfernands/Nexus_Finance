@@ -1,6 +1,8 @@
 import React, { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "../../lib/supabase";
+import { LEGAL_DOCUMENT_VERSION } from "../../legal/legalDocuments";
+import { acceptRequiredLegalDocuments } from "../../services/legal";
 
 interface AuthContextValue {
   hasAccount: boolean;
@@ -8,7 +10,7 @@ interface AuthContextValue {
   isReady: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, legalAccepted: boolean) => Promise<void>;
   session: Session | null;
   user: User | null;
 }
@@ -21,6 +23,18 @@ function getAuthClient() {
   }
 
   return supabase;
+}
+
+async function syncAcceptedLegalDocuments(session: Session | null) {
+  if (!session?.access_token || !session.user.user_metadata?.legal_terms_accepted) {
+    return;
+  }
+
+  try {
+    await acceptRequiredLegalDocuments(session.access_token);
+  } catch (error) {
+    console.warn("Nao foi possivel sincronizar aceite legal agora.", error);
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Falha ao carregar sessao do Supabase", error);
       }
 
+      void syncAcceptedLegalDocuments(data.session ?? null);
       setSession(data.session ?? null);
       setIsReady(true);
     });
@@ -61,15 +76,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, legalAccepted: boolean) => {
+    if (!legalAccepted) {
+      throw new Error("Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.");
+    }
+
     const client = getAuthClient();
     const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+    const acceptedAt = new Date().toISOString();
     const { data, error } = await client.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
       options: {
         data: {
           full_name: name.trim(),
+          legal_terms_accepted: true,
+          legal_terms_version: LEGAL_DOCUMENT_VERSION,
+          legal_privacy_version: LEGAL_DOCUMENT_VERSION,
+          legal_accepted_at: acceptedAt,
+          legal_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         },
         emailRedirectTo: redirectTo,
       },
@@ -79,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
+    await syncAcceptedLegalDocuments(data.session ?? null);
     setSession(data.session ?? null);
   };
 
@@ -93,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
+    await syncAcceptedLegalDocuments(data.session);
     setSession(data.session);
   };
 

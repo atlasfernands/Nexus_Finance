@@ -19,6 +19,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -40,7 +41,11 @@ export default function Auth() {
           throw new Error("A senha precisa ter pelo menos 8 caracteres, incluindo letras e numeros.");
         }
 
-        await register(form.name, form.email, form.password);
+        if (!legalAccepted) {
+          throw new Error("Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.");
+        }
+
+        await register(form.name, form.email, form.password, legalAccepted);
         setNotice("Conta criada. Se houver confirmacao por email, confira sua caixa de entrada.");
       } else {
         await login(form.email, form.password);
@@ -188,6 +193,39 @@ export default function Auth() {
                   </div>
                 </label>
 
+                {mode === "register" && (
+                  <label className="flex items-start gap-3 rounded-2xl border border-brand-border bg-slate-950/70 p-4 text-sm leading-6 text-slate-300">
+                    <input
+                      type="checkbox"
+                      required
+                      checked={legalAccepted}
+                      onChange={(event) => setLegalAccepted(event.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-brand-border bg-slate-950 accent-brand-green"
+                    />
+                    <span>
+                      Li e aceito os{" "}
+                      <a
+                        href="/termos-de-uso"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-brand-green hover:text-white"
+                      >
+                        Termos de Uso
+                      </a>{" "}
+                      e a{" "}
+                      <a
+                        href="/politica-de-privacidade"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-brand-green hover:text-white"
+                      >
+                        Politica de Privacidade
+                      </a>
+                      .
+                    </span>
+                  </label>
+                )}
+
                 {error && (
                   <div className="rounded-2xl border border-brand-red/30 bg-brand-red/5 px-4 py-3 text-sm text-brand-red">
                     {error}
@@ -225,6 +263,7 @@ export default function Auth() {
                   setError("");
                   setNotice("");
                   setForm(createEmptyForm());
+                  setLegalAccepted(false);
                   setMode((current) => (current === "register" ? "login" : "register"));
                 }}
                 className="mt-5 text-sm font-medium text-brand-green transition-colors hover:text-white"

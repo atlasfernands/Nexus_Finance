@@ -35,6 +35,30 @@ describe("transactionLedger", () => {
     ]);
   });
 
+  it("orders received income before expenses on the same day before calculating balance", () => {
+    const transactions = [
+      createTransaction({
+        id: "bill",
+        date: "10/04/2026",
+        type: TransactionType.EXPENSE,
+        amount: 300,
+        sourceOrder: 1,
+      }),
+      createTransaction({
+        id: "received",
+        date: "10/04/2026",
+        type: TransactionType.INCOME,
+        amount: 500,
+        sourceOrder: 2,
+      }),
+    ];
+
+    const result = calculateRunningBalances(transactions);
+
+    expect(result.map((transaction) => transaction.id)).toEqual(["received", "bill"]);
+    expect(result.map((transaction) => transaction.runningBalance)).toEqual([500, 200]);
+  });
+
   it("calculates running balances for imported rows without accumulated balance", () => {
     const transactions = [
       createTransaction({

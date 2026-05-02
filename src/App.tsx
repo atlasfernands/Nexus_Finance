@@ -16,11 +16,39 @@ import StoreModule from "./views/StoreModule";
 import HomeModule from "./views/HomeModule";
 import AIInsights from "./views/AIInsights";
 import Settings from "./views/Settings";
+import PrivacySettings from "./views/PrivacySettings";
+import LegalDocumentPage from "./views/LegalDocumentPage";
+import { getLegalDocumentByPath } from "./legal/legalDocuments";
+
+function getInitialView(): View {
+  if (typeof window !== "undefined" && window.location.pathname === "/configuracoes/privacidade") {
+    return "privacy";
+  }
+
+  return "dashboard";
+}
 
 function AppContent() {
   const { isConfigured, isReady, session } = useAuth();
   const { isReady: isFinanceReady } = useFinance();
-  const [currentView, setView] = useState<View>("dashboard");
+  const [currentView, setCurrentView] = useState<View>(getInitialView);
+
+  const setView = (view: View) => {
+    setCurrentView(view);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (view === "privacy") {
+      window.history.pushState(null, "", "/configuracoes/privacidade");
+      return;
+    }
+
+    if (window.location.pathname === "/configuracoes/privacidade") {
+      window.history.pushState(null, "", "/");
+    }
+  };
 
   const viewComponents = {
     dashboard: Dashboard,
@@ -31,6 +59,7 @@ function AppContent() {
     home: HomeModule,
     ai: AIInsights,
     settings: Settings,
+    privacy: PrivacySettings,
   };
 
   const ViewComponent = viewComponents[currentView] || Dashboard;
@@ -53,6 +82,13 @@ function AppContent() {
 }
 
 export default function App() {
+  const publicLegalDocument =
+    typeof window !== "undefined" ? getLegalDocumentByPath(window.location.pathname) : null;
+
+  if (publicLegalDocument) {
+    return <LegalDocumentPage document={publicLegalDocument} />;
+  }
+
   return (
     <AuthProvider>
       <FinanceProvider>
@@ -61,4 +97,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-

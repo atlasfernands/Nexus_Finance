@@ -1,7 +1,8 @@
 import Papa from "papaparse";
-import { compareDateStrings, generateId, parseDateString } from "../lib/utils";
+import { generateId, parseDateString } from "../lib/utils";
 import { calculateRunningBalances } from "../lib/transactionLedger";
 import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
+import { parsePdfFile } from "./pdfImport";
 
 export type RawImportCell = string | number | boolean | Date | null | undefined;
 export type RawImportRow = Record<string, RawImportCell>;
@@ -191,8 +192,18 @@ export class ImportService {
   static async parseFile(file: File): Promise<ImportResult> {
     const extension = file.name.split(".").pop()?.toLowerCase();
 
+    if (extension === "pdf") {
+      const pdfResult = await parsePdfFile(file);
+      const importResult = this.processData(pdfResult.rawRows);
+
+      return {
+        ...importResult,
+        warnings: [...pdfResult.warnings, ...importResult.warnings],
+      };
+    }
+
     if (extension !== "csv") {
-      throw new Error("Formato de arquivo nao suportado. Use CSV.");
+      throw new Error("Formato de arquivo nao suportado. Use CSV ou PDF.");
     }
 
     const rawData = await this.parseCSV(file);
@@ -380,22 +391,6 @@ export class ImportService {
     );
   }
 
-  private static sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
-    return [...transactions].sort((left, right) => {
-      const dateComparison = compareDateStrings(left.date, right.date);
-
-      if (dateComparison !== 0) {
-        return dateComparison;
-      }
-
-      if (typeof left.sourceOrder === "number" && typeof right.sourceOrder === "number") {
-        return left.sourceOrder - right.sourceOrder;
-      }
-
-      return left.description.localeCompare(right.description, "pt-BR");
-    });
-  }
-
   private static processData(rawData: RawImportRow[]): ImportResult {
     const transactions: Transaction[] = [];
     const errors: string[] = [];
@@ -427,7 +422,7 @@ export class ImportService {
     const hadMissingRunningBalances = transactions.some(
       (transaction) => typeof transaction.runningBalance !== "number"
     );
-    const sortedTransactions = calculateRunningBalances(this.sortTransactionsByDate(transactions), {
+    const sortedTransactions = calculateRunningBalances(transactions, {
       preserveExisting: true,
     });
 
@@ -554,6 +549,7 @@ export class ImportService {
     const tipoRaw = this.extractStringValue(row, mapping.tipo);
     const subcategoriaRaw = this.extractStringValue(row, mapping.subcategoria);
     const statusRaw = this.extractStringValue(row, mapping.status);
+    const statusLower = this.normalizeComparisonText(statusRaw ?? "");
 
     if (!descricao) {
       throw new Error("Descricao obrigatoria nao encontrada");
@@ -575,6 +571,9 @@ export class ImportService {
         tipoLower.includes("entrada") ||
         tipoLower.includes("income") ||
         tipoLower.includes("recebimento") ||
+        tipoLower.includes("recebido") ||
+        tipoLower.includes("received") ||
+        tipoLower.includes("credito") ||
         tipoLower.includes("renda")
       ) {
         tipo = TransactionType.INCOME;
@@ -582,14 +581,25 @@ export class ImportService {
         tipoLower.includes("saida") ||
         tipoLower.includes("expense") ||
         tipoLower.includes("pagamento") ||
+        tipoLower.includes("pago") ||
+        tipoLower.includes("paid") ||
+        tipoLower.includes("debito") ||
         tipoLower.includes("despesa")
       ) {
+        tipo = TransactionType.EXPENSE;
+      } else if (statusLower.includes("recebido") || statusLower.includes("received")) {
+        tipo = TransactionType.INCOME;
+      } else if (statusLower.includes("pago") || statusLower.includes("paid")) {
         tipo = TransactionType.EXPENSE;
       } else if (valorRaw < 0) {
         tipo = TransactionType.EXPENSE;
       } else if (valorRaw > 0) {
         tipo = TransactionType.INCOME;
       }
+    } else if (statusLower.includes("recebido") || statusLower.includes("received")) {
+      tipo = TransactionType.INCOME;
+    } else if (statusLower.includes("pago") || statusLower.includes("paid")) {
+      tipo = TransactionType.EXPENSE;
     } else {
       tipo = valorRaw >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
     }
@@ -613,7 +623,6 @@ export class ImportService {
 
     let status: Transaction["status"] = TransactionStatus.PAID;
     if (statusRaw) {
-      const statusLower = this.normalizeComparisonText(statusRaw);
       if (statusLower.includes("pendente") || statusLower.includes("pending") || statusLower.includes("nao pago")) {
         status = TransactionStatus.PENDING;
       } else if (statusLower.includes("cancelado") || statusLower.includes("cancelled")) {

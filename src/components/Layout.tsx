@@ -14,6 +14,7 @@ import {
   ListOrdered,
   Menu,
   Settings,
+  ShieldCheck,
   Store,
   Wifi,
   WifiOff,
@@ -65,6 +66,7 @@ export type View =
   | "store"
   | "home"
   | "settings"
+  | "privacy"
   | "ai";
 
 export default function Layout({
@@ -293,8 +295,10 @@ export default function Layout({
   const currentViewLabel =
     systemsItems.find((item) => item.id === currentView)?.label ||
     analysisItems.find((item) => item.id === currentView)?.label ||
+    (currentView === "settings" ? "Configuracoes" : null) ||
+    (currentView === "privacy" ? "Legal e Privacidade" : null) ||
     currentView;
-  const showReportingPeriodControls = !["transactions", "import", "settings"].includes(currentView);
+  const showReportingPeriodControls = !["transactions", "import", "settings", "privacy"].includes(currentView);
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-brand-bg">
@@ -383,6 +387,16 @@ export default function Layout({
                 active={currentView === "settings"}
                 onClick={() => {
                   setView("settings");
+                  setMobileMenuOpen(false);
+                }}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem
+                icon={ShieldCheck}
+                label="Legal e Privacidade"
+                active={currentView === "privacy"}
+                onClick={() => {
+                  setView("privacy");
                   setMobileMenuOpen(false);
                 }}
                 collapsed={sidebarCollapsed}

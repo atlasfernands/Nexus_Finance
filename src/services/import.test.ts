@@ -113,6 +113,38 @@ describe("ImportService", () => {
     expect(result.transactions[2].category).toBe("Estornos Nubank");
   });
 
+  it("uses received and paid statuses to infer type when the tipo column is missing", () => {
+    const result = ImportService.parseRows([
+      {
+        data: "10/04/2026",
+        descricao: "Conta da internet",
+        categoria: "Moradia",
+        valor: "200.00",
+        status: "Pago",
+        subcategoria: "Casa",
+      },
+      {
+        data: "10/04/2026",
+        descricao: "Venda do dia",
+        categoria: "Vendas",
+        valor: "500.00",
+        status: "Recebido",
+        subcategoria: "Loja",
+      },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.transactions.map((transaction) => transaction.description)).toEqual([
+      "Venda do dia",
+      "Conta da internet",
+    ]);
+    expect(result.transactions.map((transaction) => transaction.type)).toEqual([
+      TransactionType.INCOME,
+      TransactionType.EXPENSE,
+    ]);
+    expect(result.transactions.map((transaction) => transaction.runningBalance)).toEqual([500, 300]);
+  });
+
   it("repairs mojibake in Nubank headers and descriptions", () => {
     const result = ImportService.parseRows([
       {

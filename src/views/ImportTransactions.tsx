@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   Import as ImportIcon,
+  ShieldCheck,
   Smartphone,
   Sparkles,
   Upload,
@@ -30,6 +31,13 @@ import {
   ImportResult,
   ImportService,
 } from "../services/import";
+import {
+  PrivacyStatus,
+  acceptBankStatementConsent,
+  fetchPrivacyStatus,
+  hasActiveBankStatementConsent,
+  hasRevokedBankStatementConsent,
+} from "../services/legal";
 import { Transaction, TransactionStatus, TransactionType } from "../types";
 
 interface ImportPreviewResult extends Omit<ImportResult, "transactions"> {
@@ -81,6 +89,12 @@ export default function ImportTransactions() {
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [promptCopied, setPromptCopied] = useState(false);
+  const [privacyStatus, setPrivacyStatus] = useState<PrivacyStatus | null>(null);
+  const [pendingConsentFile, setPendingConsentFile] = useState<File | null>(null);
+  const [consentModalOpen, setConsentModalOpen] = useState(false);
+  const [statementConsentChecked, setStatementConsentChecked] = useState(false);
+  const [aggregateConsentChecked, setAggregateConsentChecked] = useState(false);
+  const [consentError, setConsentError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const aiPromptTemplate = useMemo(() => buildCsvImportAiPromptTemplate(), []);
 
@@ -103,7 +117,27 @@ export default function ImportTransactions() {
     ? [...importResult.transactions, ...selectedDuplicates.map((duplicate) => duplicate.transaction)]
     : [];
 
-  const processFile = async (file: File) => {
+  useEffect(() => {
+    let mounted = true;
+
+    fetchPrivacyStatus()
+      .then((status) => {
+        if (mounted) {
+          setPrivacyStatus(status);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setPrivacyStatus(null);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const parseFileForPreview = async (file: File) => {
     setLoading(true);
 
     try {
@@ -181,6 +215,85 @@ export default function ImportTransactions() {
     }
   };
 
+  const processFile = async (file: File) => {
+    setConsentError("");
+
+    try {
+      const latestPrivacyStatus = privacyStatus ?? (await fetchPrivacyStatus());
+      setPrivacyStatus(latestPrivacyStatus);
+
+      if (!hasActiveBankStatementConsent(latestPrivacyStatus)) {
+        setPendingConsentFile(file);
+        setStatementConsentChecked(false);
+        setAggregateConsentChecked(false);
+        setConsentModalOpen(true);
+
+        if (hasRevokedBankStatementConsent(latestPrivacyStatus)) {
+          setConsentError(
+            "Voce revogou o consentimento para processamento de novos extratos. Para enviar outro extrato, sera necessario autorizar novamente."
+          );
+        }
+
+        return;
+      }
+
+      await parseFileForPreview(file);
+    } catch (caughtError) {
+      setImportResult({
+        duplicateDecisions: {},
+        duplicateMatches: [],
+        transactions: [],
+        errors: [
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Nao foi possivel validar o consentimento antes do upload.",
+        ],
+        warnings: [],
+      });
+    }
+  };
+
+  const handleAuthorizeStatementProcessing = async () => {
+    if (!statementConsentChecked) {
+      setConsentError("Sem essa autorizacao, nao conseguimos processar extratos bancarios na sua conta.");
+      return;
+    }
+
+    const fileToProcess = pendingConsentFile;
+    setLoading(true);
+    setConsentError("");
+
+    try {
+      await acceptBankStatementConsent(aggregateConsentChecked);
+      const updatedPrivacyStatus = await fetchPrivacyStatus();
+      setPrivacyStatus(updatedPrivacyStatus);
+      setConsentModalOpen(false);
+      setPendingConsentFile(null);
+
+      if (fileToProcess) {
+        await parseFileForPreview(fileToProcess);
+      }
+    } catch (caughtError) {
+      setConsentError(
+        caughtError instanceof Error ? caughtError.message : "Nao foi possivel salvar o consentimento agora."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelStatementProcessing = () => {
+    setConsentModalOpen(false);
+    setPendingConsentFile(null);
+    setStatementConsentChecked(false);
+    setAggregateConsentChecked(false);
+    setConsentError("Sem essa autorizacao, nao conseguimos processar extratos bancarios na sua conta.");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const removeItem = (id: string) => {
     if (!importResult) {
       return;
@@ -249,10 +362,16 @@ export default function ImportTransactions() {
         <CardHeader>
           <h3 className="text-xl font-bold text-white">Importacao Inteligente</h3>
           <p className="text-sm text-slate-500">
-            Arraste seu arquivo CSV para detectar e importar lancamentos automaticamente.
+            Arraste seu arquivo CSV ou PDF de extrato para detectar e importar lancamentos automaticamente.
           </p>
         </CardHeader>
         <CardContent>
+          {consentError && (
+            <div className="mb-4 rounded-2xl border border-brand-yellow/30 bg-brand-yellow/5 px-4 py-3 text-sm text-brand-yellow">
+              {consentError}
+            </div>
+          )}
+
           <div
             onDragOver={(event) => {
               event.preventDefault();
@@ -277,14 +396,18 @@ export default function ImportTransactions() {
               type="file"
               ref={fileInputRef}
               className="hidden"
-              accept=".csv"
+              accept=".csv,.pdf,text/csv,application/pdf"
               onChange={(event) => event.target.files?.[0] && processFile(event.target.files[0])}
             />
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
               <Upload className={cn(dragActive ? "text-brand-green" : "text-slate-400")} size={32} />
             </div>
             <p className="font-medium text-white">Clique para selecionar ou arraste o arquivo</p>
-            <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-500">Formato: CSV</p>
+            <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-500">Formatos: CSV ou PDF texto</p>
+            <p className="mt-2 max-w-md text-center text-xs text-slate-500">
+              PDFs sao lidos localmente no navegador. Nesta primeira versao, o conversor PDF reconhece extratos
+              Nubank pesquisaveis; PDFs escaneados precisam ser exportados em CSV.
+            </p>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
@@ -695,6 +818,76 @@ export default function ImportTransactions() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {consentModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bank-statement-consent-title"
+            className="w-full max-w-xl rounded-[28px] border border-brand-border bg-brand-card p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl border border-brand-green/20 bg-brand-green/10 p-3 text-brand-green">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <h3 id="bank-statement-consent-title" className="text-xl font-bold text-white">
+                  Autorizacao para processamento do extrato bancario
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  Para gerar suas analises financeiras, precisamos processar o arquivo de extrato bancario que voce
+                  enviar. O extrato pode conter informacoes pessoais e financeiras, como banco, datas, descricoes de
+                  transacoes, valores, receitas, despesas, saldos e identificacao de estabelecimentos. Usaremos esses
+                  dados apenas para organizar, categorizar e apresentar suas informacoes financeiras dentro da sua conta.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <label className="flex items-start gap-3 rounded-2xl border border-brand-border bg-slate-950/70 p-4 text-sm leading-6 text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={statementConsentChecked}
+                  onChange={(event) => setStatementConsentChecked(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-brand-border bg-slate-950 accent-brand-green"
+                />
+                <span>
+                  Autorizo o processamento do meu extrato bancario para fins de organizacao e analise das minhas
+                  financas pessoais.
+                </span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-2xl border border-brand-border bg-slate-950/70 p-4 text-sm leading-6 text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={aggregateConsentChecked}
+                  onChange={(event) => setAggregateConsentChecked(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-brand-border bg-slate-950 accent-brand-green"
+                />
+                <span>
+                  Autorizo o uso de dados anonimizados e agregados para melhoria do sistema, sem identificacao pessoal.
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button type="button" variant="secondary" onClick={handleCancelStatementProcessing} disabled={loading}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  void handleAuthorizeStatementProcessing();
+                }}
+                disabled={loading || !statementConsentChecked}
+              >
+                {loading ? "Autorizando..." : "Autorizar e continuar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
