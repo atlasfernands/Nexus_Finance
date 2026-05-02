@@ -6,6 +6,7 @@ import type { AIAnalysisRequest, AIAnalysisResponse } from "../src/services/ai";
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_TRANSACTIONS = 30;
 const MAX_TEXT_LENGTH = 120;
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown) {
   response.statusCode = statusCode;
@@ -170,13 +171,15 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
+  const geminiModel = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+
   try {
     await verifySupabaseUser(token);
     const payload = await readRequestBody(request);
     const analysisRequest = sanitizeAnalysisRequest(payload);
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
     const aiResponse = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: geminiModel,
       contents: buildPrompt(analysisRequest),
     });
 

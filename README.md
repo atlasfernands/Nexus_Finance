@@ -35,6 +35,7 @@ Crie um `.env` baseado em `.env.example`.
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
 VITE_API_BASE_URL=
 ```
 
@@ -63,6 +64,7 @@ VITE_API_BASE_URL=
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
    - `GEMINI_API_KEY` se usar IA. Esta variavel deve ficar apenas no servidor/Vercel, nunca com prefixo `VITE_`.
+   - `GEMINI_MODEL`, por padrao `gemini-2.5-flash`.
 4. Deploy.
 
 O arquivo `vercel.json` ja foi incluido com fallback de SPA e headers de seguranca.
