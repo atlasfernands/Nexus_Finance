@@ -72,6 +72,61 @@ describe("ImportService", () => {
     expect(result.transactions[0].runningBalance).toBe(1920.5);
   });
 
+  it("accepts Nubank statement rows and infers type from signed values", () => {
+    const result = ImportService.parseRows([
+      {
+        Data: "13/03/2026",
+        Valor: "98.82",
+        Identificador: "69b38454-7e69-4a40-a632-3bd5b6fc53b8",
+        "Descrição": "Transferência recebida pelo Pix - ROBERTA FRAGOSO",
+      },
+      {
+        Data: "13/03/2026",
+        Valor: "-98.82",
+        Identificador: "69b38475-75a3-4b0d-beee-1c3b431c747f",
+        "Descrição": "Transferência enviada pelo Pix - SHPP BRASIL",
+      },
+      {
+        Data: "17/03/2026",
+        Valor: "33.85",
+        Identificador: "69b9961f-e862-42d3-bb1b-228c6794faae",
+        "Descrição": "Estorno - Transferência enviada pelo Pix - POSTO TREVO",
+      },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toContain("Formato Nubank detectado: entradas e saidas foram inferidas pelo sinal do valor.");
+    expect(result.warnings).not.toContain("Algumas datas podem estar em formato incorreto");
+    expect(result.transactions).toHaveLength(3);
+    expect(result.transactions[0].type).toBe(TransactionType.INCOME);
+    expect(result.transactions[0].amount).toBe(98.82);
+    expect(result.transactions[0].category).toBe("Pix Recebido");
+    expect(result.transactions[0].notes).toContain("69b38454");
+    expect(result.transactions[0].tags).toContain("nubank");
+    expect(result.transactions[1].type).toBe(TransactionType.EXPENSE);
+    expect(result.transactions[1].amount).toBe(98.82);
+    expect(result.transactions[1].category).toBe("Pix Enviado");
+    expect(result.transactions[2].category).toBe("Estornos Nubank");
+  });
+
+  it("repairs mojibake in Nubank headers and descriptions", () => {
+    const result = ImportService.parseRows([
+      {
+        Data: "17/03/2026",
+        Valor: "-66.00",
+        Identificador: "69b99b21-346b-49eb-8bdb-148a27cc842e",
+        "DescriÃ§Ã£o": "Compra no dÃ©bito - POSTO TREVO ERMITAGE",
+      },
+    ]);
+
+    expect(result.errors).toEqual([]);
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].description).toBe("Compra no débito - POSTO TREVO ERMITAGE");
+    expect(result.transactions[0].type).toBe(TransactionType.EXPENSE);
+    expect(result.transactions[0].category).toBe("Compras no Debito");
+    expect(result.transactions[0].status).toBe(TransactionStatus.PAID);
+  });
+
   it("builds an AI prompt aligned with the official CSV model", () => {
     const prompt = buildCsvImportAiPromptTemplate();
 

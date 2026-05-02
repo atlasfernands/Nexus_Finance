@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { compareDateStrings, generateId } from "../lib/utils";
+import { compareDateStrings, generateId, parseDateString } from "../lib/utils";
 import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export type RawImportCell = string | number | boolean | Date | null | undefined;
@@ -17,6 +17,7 @@ export interface ColumnMapping {
   valor: string;
   data: string;
   categoria?: string;
+  identificador?: string;
   saldoAcumulado?: string;
   tipo?: string;
   subcategoria?: string;
@@ -149,10 +150,41 @@ export class ImportService {
     valor: ["valor", "value", "amount", "preco", "price", "total", "montante", "valor (r$)"],
     data: ["data", "date", "dt", "data_compra", "purchase_date"],
     categoria: ["categoria", "category", "tipo", "type", "classificacao"],
+    identificador: ["identificador", "nubank_id", "nubank id", "identifier", "transaction id", "transaction_id"],
     saldoAcumulado: ["saldo_acumulado", "saldo acumulado", "running_balance", "balance", "saldo"],
     tipo: ["tipo", "type", "operacao", "operation", "movimento", "tipo\n(entrada/saida)"],
     subcategoria: ["subcategoria", "subcategory", "sistema", "system"],
     status: ["status", "estado", "state", "situacao"],
+  };
+
+  private static readonly WINDOWS_1252_REVERSE_MAP: Record<string, number> = {
+    "€": 0x80,
+    "‚": 0x82,
+    "ƒ": 0x83,
+    "„": 0x84,
+    "…": 0x85,
+    "†": 0x86,
+    "‡": 0x87,
+    "ˆ": 0x88,
+    "‰": 0x89,
+    "Š": 0x8a,
+    "‹": 0x8b,
+    "Œ": 0x8c,
+    "Ž": 0x8e,
+    "‘": 0x91,
+    "’": 0x92,
+    "“": 0x93,
+    "”": 0x94,
+    "•": 0x95,
+    "–": 0x96,
+    "—": 0x97,
+    "˜": 0x98,
+    "™": 0x99,
+    "š": 0x9a,
+    "›": 0x9b,
+    "œ": 0x9c,
+    "ž": 0x9e,
+    "Ÿ": 0x9f,
   };
 
   static async parseFile(file: File): Promise<ImportResult> {
@@ -196,7 +228,7 @@ export class ImportService {
 
     if (headerRowIndex >= 0) {
       const headers = cleanedRows[headerRowIndex].map((cell, index) => {
-        const value = String(cell ?? "").trim().replace(/\s+/g, " ");
+        const value = this.repairMojibake(String(cell ?? "")).trim().replace(/\s+/g, " ");
         return value !== "" ? value : `col_${index + 1}`;
       });
 
@@ -241,8 +273,39 @@ export class ImportService {
     }, {});
   }
 
+  private static countMojibakeMarkers(value: string): number {
+    return (value.match(/Ã|Â|â€|â€¢|ï¿½|�/g) ?? []).length;
+  }
+
+  private static repairMojibake(value: string): string {
+    if (!/[ÃÂâï�]/.test(value)) {
+      return value;
+    }
+
+    try {
+      const bytes = Uint8Array.from(Array.from(value), (char) => {
+        const mappedByte = this.WINDOWS_1252_REVERSE_MAP[char];
+        if (mappedByte !== undefined) {
+          return mappedByte;
+        }
+
+        const codePoint = char.codePointAt(0) ?? 0;
+        return codePoint <= 0xff ? codePoint : 0x3f;
+      });
+      const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+
+      if (decoded.includes("�")) {
+        return value;
+      }
+
+      return this.countMojibakeMarkers(decoded) < this.countMojibakeMarkers(value) ? decoded : value;
+    } catch {
+      return value;
+    }
+  }
+
   private static normalizeComparisonText(value: string): string {
-    return value
+    return this.repairMojibake(value)
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -324,6 +387,10 @@ export class ImportService {
         return dateComparison;
       }
 
+      if (typeof left.sourceOrder === "number" && typeof right.sourceOrder === "number") {
+        return left.sourceOrder - right.sourceOrder;
+      }
+
       return left.description.localeCompare(right.description, "pt-BR");
     });
   }
@@ -339,6 +406,11 @@ export class ImportService {
     }
 
     const mapping = this.detectColumnMapping(rawData[0]);
+    const isNubankStatement = rawData.some((row) => this.isNubankStatementRow(row, mapping));
+
+    if (isNubankStatement) {
+      warnings.push("Formato Nubank detectado: entradas e saidas foram inferidas pelo sinal do valor.");
+    }
 
     rawData.forEach((row, index) => {
       try {
@@ -402,11 +474,72 @@ export class ImportService {
     return mapping;
   }
 
+  private static isNubankStatementRow(row: RawImportRow, mapping: ColumnMapping): boolean {
+    const identifierHeader = this.normalizeComparisonText(mapping.identificador ?? "");
+    const isNubankIdentifierHeader = identifierHeader === "identificador" || identifierHeader.includes("nubank");
+
+    return Boolean(
+      isNubankIdentifierHeader &&
+        this.extractStringValue(row, mapping.identificador) &&
+        this.extractStringValue(row, mapping.data) &&
+        this.extractStringValue(row, mapping.descricao) &&
+        this.extractNumericValue(row, mapping.valor) !== null
+    );
+  }
+
+  private static inferImportedCategory(
+    description: string,
+    type: TransactionType,
+    isNubankStatement: boolean
+  ): string {
+    if (!isNubankStatement) {
+      return "Importado";
+    }
+
+    const normalizedDescription = this.normalizeComparisonText(description);
+
+    if (normalizedDescription.includes("estorno")) {
+      return "Estornos Nubank";
+    }
+
+    if (normalizedDescription.includes("pagamento de fatura")) {
+      return "Cartao Nubank";
+    }
+
+    if (normalizedDescription.includes("compra no debito")) {
+      return "Compras no Debito";
+    }
+
+    if (type === TransactionType.INCOME && normalizedDescription.includes("credito em conta")) {
+      return "Creditos Nubank";
+    }
+
+    if (type === TransactionType.INCOME && normalizedDescription.includes("pix")) {
+      return "Pix Recebido";
+    }
+
+    if (type === TransactionType.EXPENSE && normalizedDescription.includes("pix")) {
+      return "Pix Enviado";
+    }
+
+    if (type === TransactionType.INCOME && normalizedDescription.includes("transferencia recebida")) {
+      return "Transferencias Recebidas";
+    }
+
+    if (type === TransactionType.EXPENSE && normalizedDescription.includes("transferencia enviada")) {
+      return "Transferencias Enviadas";
+    }
+
+    return "Nubank";
+  }
+
   private static mapRowToTransaction(row: RawImportRow, mapping: ColumnMapping, rowNumber: number): Transaction | null {
     const descricao = this.extractStringValue(row, mapping.descricao);
     const valorRaw = this.extractNumericValue(row, mapping.valor);
     const dataRaw = this.extractStringValue(row, mapping.data);
-    const categoria = this.extractStringValue(row, mapping.categoria) || "Importado";
+    const categoriaRaw = this.extractStringValue(row, mapping.categoria);
+    const identificador = this.extractStringValue(row, mapping.identificador);
+    const isNubankStatement = this.isNubankStatementRow(row, mapping);
     const saldoAcumuladoRaw = this.extractNumericValue(row, mapping.saldoAcumulado ?? "saldo_acumulado");
     const tipoRaw = this.extractStringValue(row, mapping.tipo);
     const subcategoriaRaw = this.extractStringValue(row, mapping.subcategoria);
@@ -450,6 +583,8 @@ export class ImportService {
     } else {
       tipo = valorRaw >= 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
     }
+
+    const categoria = categoriaRaw || this.inferImportedCategory(descricao, tipo, isNubankStatement);
 
     let subcategoria: TransactionSubcategory = TransactionSubcategory.HOME;
     if (subcategoriaRaw) {
@@ -499,6 +634,8 @@ export class ImportService {
       status,
       recurring: false,
       sourceOrder: rowNumber,
+      notes: isNubankStatement && identificador ? `ID Nubank: ${identificador}` : undefined,
+      tags: isNubankStatement && identificador ? ["nubank", `nubank:${identificador}`] : undefined,
     };
   }
 
@@ -512,7 +649,7 @@ export class ImportService {
       return undefined;
     }
 
-    return String(value).trim();
+    return this.repairMojibake(String(value)).trim();
   }
 
   private static extractNumericValue(row: RawImportRow, field: string | undefined): number | null {
@@ -611,8 +748,7 @@ export class ImportService {
 
   private static isValidDate(date: Date | string): boolean {
     if (typeof date === "string") {
-      const parsedDate = new Date(date);
-      return !Number.isNaN(parsedDate.getTime());
+      return parseDateString(date) !== null;
     }
 
     return !Number.isNaN(date.getTime());
