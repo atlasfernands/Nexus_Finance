@@ -73,6 +73,10 @@ function isTransactionInReportingPeriod(date: Date, period: ReportingPeriod): bo
   return date.getMonth() === period.month && date.getFullYear() === period.year;
 }
 
+function getPendingBalanceReferenceDate(dueDate: Date, periodReferenceDate: Date): Date {
+  return dueDate.getTime() < periodReferenceDate.getTime() ? periodReferenceDate : dueDate;
+}
+
 export function useFinanceStats() {
   const { state } = useFinance();
   const { reportingPeriod, transactions: allTransactions } = state;
@@ -214,7 +218,10 @@ export function useFinanceStats() {
 
   const enrichedCurrentPeriodPending = sortTransactionsByDate(pendingPeriodTransactions).map((transaction) => {
     const parsedDate = parseDateString(transaction.date);
-    const balanceBefore = parsedDate ? calculateRealizedBalanceUntilDate(allActiveTransactions, parsedDate) : 0;
+    const balanceReferenceDate = parsedDate
+      ? getPendingBalanceReferenceDate(parsedDate, reportingReferenceDate)
+      : reportingReferenceDate;
+    const balanceBefore = calculateRealizedBalanceUntilDate(allActiveTransactions, balanceReferenceDate);
     const impact = getSignedTransactionImpact(transaction);
     const balanceAfter = roundCurrency(balanceBefore + impact);
 

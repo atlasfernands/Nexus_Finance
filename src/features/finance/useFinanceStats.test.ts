@@ -110,7 +110,7 @@ describe("useFinanceStats", () => {
           date: "30/04/2026",
           description: "Saldo inicial real",
           type: TransactionType.INCOME,
-          amount: 244.65,
+          amount: 256.51,
           status: TransactionStatus.PAID,
         }),
         createTransaction({
@@ -173,12 +173,13 @@ describe("useFinanceStats", () => {
 
     expect(result.entradasMes).toBe(310);
     expect(result.saidasMes).toBe(54.02);
-    expect(result.saldoRealizado).toBe(500.63);
-    expect(result.saldoMesAtual).toBe(500.63);
-    expect(result.saldoProjetado).toBe(500.63);
-    expect(result.firstNegativePendingEvent?.balanceBefore).toBe(554.65);
-    expect(result.firstNegativePendingEvent?.shortageAmount).toBe(145.35);
-    expect(result.dailyBalanceTimeline[0].saldoRealDoDia).toBe(554.65);
+    expect(result.saldoRealizado).toBe(512.49);
+    expect(result.saldoMesAtual).toBe(512.49);
+    expect(result.saldoProjetado).toBe(512.49);
+    expect(result.firstNegativePendingEvent?.balanceBefore).toBe(512.49);
+    expect(result.firstNegativePendingEvent?.shortageAmount).toBe(187.51);
+    expect(result.firstNegativePendingEvent?.balanceAfter).toBe(-187.51);
+    expect(result.dailyBalanceTimeline[0].saldoRealDoDia).toBe(512.49);
   });
 
   it("keeps realized balance negative when paid expenses exceed received income", () => {
