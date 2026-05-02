@@ -11,6 +11,7 @@ import { useAuth } from "../features/auth/AuthContext";
 import { useFinance } from "../features/finance/FinanceContext";
 import { useFinanceStats } from "../features/finance/useFinanceStats";
 import { requestAIAnalysis } from "../services/ai";
+import { formatHealthScore } from "../services/aiScore";
 
 export default function AIInsights() {
   const { session } = useAuth();
@@ -27,6 +28,7 @@ export default function AIInsights() {
   } = useFinanceStats();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const healthScore = formatHealthScore(state.aiInsights.lastAnalysis);
 
   const generateAnalyze = async () => {
     setLoading(true);
@@ -118,7 +120,7 @@ export default function AIInsights() {
                   <div className="flex flex-col gap-8 md:flex-row">
                     <div className="flex h-fit min-w-[140px] flex-col items-center justify-center rounded-xl border border-brand-green/20 bg-brand-bg/50 p-6">
                       <span className="text-5xl font-bold text-brand-green drop-shadow-[0_0_15px_rgba(0,255,157,0.4)]">
-                        8.4
+                        {healthScore}
                       </span>
                       <span className="mt-2 text-center text-[9px] font-bold uppercase tracking-widest text-slate-500">
                         Health Score

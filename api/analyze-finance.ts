@@ -120,7 +120,7 @@ function buildPrompt(request: AIAnalysisRequest): string {
     ${transactionsContext || "Nenhuma transacao recente enviada."}
 
     REQUISITOS DA ANALISE:
-    1. De um Score Financeiro de 0 a 10.
+    1. Comece a analise com uma linha no formato exato: Score Financeiro: X/10.
     2. Identifique 3 padroes de gastos.
     3. Sugira 2 estrategias acionaveis para atingir a meta da loja.
     4. Alerte sobre riscos relevantes.
