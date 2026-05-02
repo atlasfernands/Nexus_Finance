@@ -47,13 +47,21 @@ async function getCurrentAccessToken(fallbackAccessToken: string): Promise<strin
 
   const expiresAt = currentSession.expires_at ? currentSession.expires_at * 1000 : 0;
   const shouldRefresh = expiresAt > 0 && expiresAt <= Date.now() + 60_000;
+  const { data: userData, error: userError } = await supabase.auth.getUser(currentSession.access_token);
 
-  if (!shouldRefresh) {
+  if (!userError && userData.user && !shouldRefresh) {
     return currentSession.access_token;
   }
 
   const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession(currentSession);
   if (refreshError || !refreshedData.session?.access_token) {
+    throw new Error("Sessao expirada. Entre novamente para gerar o diagnostico.");
+  }
+
+  const { data: refreshedUserData, error: refreshedUserError } = await supabase.auth.getUser(
+    refreshedData.session.access_token
+  );
+  if (refreshedUserError || !refreshedUserData.user) {
     throw new Error("Sessao expirada. Entre novamente para gerar o diagnostico.");
   }
 
