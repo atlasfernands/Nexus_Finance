@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
-import { calculateRunningBalances, sortTransactionsByDate } from "./transactionLedger";
+import {
+  calculateRealizedBalanceUntilDate,
+  calculateRunningBalances,
+  sortTransactionsByDate,
+} from "./transactionLedger";
 
 function createTransaction(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -130,5 +134,82 @@ describe("transactionLedger", () => {
     const result = calculateRunningBalances(transactions, { preserveExisting: true });
 
     expect(result.map((transaction) => transaction.runningBalance)).toEqual([250, 225]);
+  });
+
+  it("does not subtract pending transactions from the realized running balance", () => {
+    const transactions = [
+      createTransaction({
+        id: "initial-balance",
+        date: "30/04/2026",
+        type: TransactionType.INCOME,
+        amount: 244.65,
+        status: TransactionStatus.PAID,
+      }),
+      createTransaction({
+        id: "income",
+        date: "01/05/2026",
+        type: TransactionType.INCOME,
+        amount: 310,
+        status: TransactionStatus.PAID,
+      }),
+      createTransaction({
+        id: "pending-rent",
+        date: "01/05/2026",
+        type: TransactionType.EXPENSE,
+        amount: 700,
+        status: TransactionStatus.PENDING,
+      }),
+      createTransaction({
+        id: "paid-expense",
+        date: "02/05/2026",
+        type: TransactionType.EXPENSE,
+        amount: 54.02,
+        status: TransactionStatus.PAID,
+      }),
+    ];
+
+    const result = calculateRunningBalances(transactions);
+
+    expect(result.map((transaction) => [transaction.id, transaction.runningBalance])).toEqual([
+      ["initial-balance", 244.65],
+      ["income", 554.65],
+      ["pending-rent", 554.65],
+      ["paid-expense", 500.63],
+    ]);
+  });
+
+  it("calculates realized account balance until the requested day", () => {
+    const transactions = [
+      createTransaction({
+        id: "initial-balance",
+        date: "30/04/2026",
+        type: TransactionType.INCOME,
+        amount: 244.65,
+        status: TransactionStatus.PAID,
+      }),
+      createTransaction({
+        id: "income",
+        date: "01/05/2026",
+        type: TransactionType.INCOME,
+        amount: 310,
+        status: TransactionStatus.PAID,
+      }),
+      createTransaction({
+        id: "pending-rent",
+        date: "01/05/2026",
+        type: TransactionType.EXPENSE,
+        amount: 700,
+        status: TransactionStatus.PENDING,
+      }),
+      createTransaction({
+        id: "paid-expense",
+        date: "02/05/2026",
+        type: TransactionType.EXPENSE,
+        amount: 54.02,
+        status: TransactionStatus.PAID,
+      }),
+    ];
+
+    expect(calculateRealizedBalanceUntilDate(transactions, new Date(2026, 4, 2))).toBe(500.63);
   });
 });

@@ -6,6 +6,8 @@ import { LEGAL_CONTACT_EMAIL } from "../legal/legalDocuments";
 import {
   PrivacyRequestType,
   PrivacyStatus,
+  REQUIRED_LEGAL_DOCUMENTS,
+  acceptRequiredLegalDocuments,
   createPrivacyRequest,
   exportMyData,
   fetchPrivacyStatus,
@@ -83,6 +85,7 @@ export default function PrivacySettings() {
   const [status, setStatus] = useState<PrivacyStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
+  const [legalAcceptanceChecked, setLegalAcceptanceChecked] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -135,6 +138,28 @@ export default function PrivacySettings() {
     }
   };
 
+  const handleRequiredLegalAcceptance = async () => {
+    if (!legalAcceptanceChecked) {
+      setError("Marque a caixa para confirmar que leu e aceita os documentos legais.");
+      return;
+    }
+
+    setActionLoading("legal_acceptance");
+    setMessage("");
+    setError("");
+
+    try {
+      await acceptRequiredLegalDocuments();
+      setLegalAcceptanceChecked(false);
+      setMessage("Aceite legal registrado com sucesso para esta conta.");
+      await loadPrivacyStatus();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Nao foi possivel registrar o aceite legal.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   const handleDataExport = async () => {
     setActionLoading("data_export");
     setMessage("");
@@ -154,6 +179,10 @@ export default function PrivacySettings() {
   };
 
   const activeBankConsent = hasActiveBankStatementConsent(status);
+  const acceptedDocumentTypes = new Set(status?.acceptances.map((acceptance) => acceptance.document_type) ?? []);
+  const missingRequiredDocuments = REQUIRED_LEGAL_DOCUMENTS.filter(
+    (documentType) => !acceptedDocumentTypes.has(documentType)
+  );
 
   return (
     <div className="space-y-6">
@@ -192,6 +221,39 @@ export default function PrivacySettings() {
           {error && (
             <div className="mb-4 rounded-2xl border border-brand-red/30 bg-brand-red/5 px-4 py-3 text-sm text-brand-red">
               {error}
+            </div>
+          )}
+
+          {!loading && missingRequiredDocuments.length > 0 && (
+            <div className="mb-4 rounded-2xl border border-brand-yellow/30 bg-brand-yellow/5 p-4">
+              <p className="text-sm font-bold text-white">Aceite legal pendente nesta conta</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Para vincular este e-mail aos documentos legais atuais, confirme o aceite de{" "}
+                {missingRequiredDocuments.map(getDocumentLabel).join(", ")}.
+              </p>
+              <label className="mt-4 flex items-start gap-3 rounded-xl border border-brand-border bg-slate-950/60 p-3 text-sm leading-6 text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={legalAcceptanceChecked}
+                  onChange={(event) => setLegalAcceptanceChecked(event.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-brand-border bg-slate-950 accent-brand-green"
+                />
+                <span>
+                  Li e aceito os Termos de Uso, a Politica de Privacidade e as Diretrizes do Usuario do Nexus Finance.
+                </span>
+              </label>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  void handleRequiredLegalAcceptance();
+                }}
+                disabled={Boolean(actionLoading) || !legalAcceptanceChecked}
+                className="mt-4 gap-2"
+              >
+                <ShieldCheck size={16} />
+                {actionLoading === "legal_acceptance" ? "Registrando aceite..." : "Registrar aceite legal"}
+              </Button>
             </div>
           )}
 

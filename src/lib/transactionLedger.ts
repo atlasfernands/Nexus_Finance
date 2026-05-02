@@ -1,20 +1,36 @@
 import { Transaction, TransactionStatus, TransactionType } from "../types";
-import { compareDateStrings } from "./utils";
+import { compareDateStrings, parseDateString } from "./utils";
 
 interface CalculateRunningBalanceOptions {
   preserveExisting?: boolean;
 }
 
-function roundCurrency(value: number) {
+export function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function getTransactionImpact(transaction: Transaction) {
-  if (transaction.status === TransactionStatus.CANCELLED) {
+export function getSignedTransactionImpact(transaction: Transaction) {
+  return transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
+}
+
+export function getRealizedTransactionImpact(transaction: Transaction) {
+  if (transaction.status !== TransactionStatus.PAID) {
     return 0;
   }
 
-  return transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
+  return getSignedTransactionImpact(transaction);
+}
+
+function getStatusSortRank(status: TransactionStatus) {
+  if (status === TransactionStatus.PAID) {
+    return 0;
+  }
+
+  if (status === TransactionStatus.PENDING) {
+    return 1;
+  }
+
+  return 2;
 }
 
 export function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
@@ -23,6 +39,11 @@ export function sortTransactionsByDate(transactions: Transaction[]): Transaction
 
     if (dateComparison !== 0) {
       return dateComparison;
+    }
+
+    const statusComparison = getStatusSortRank(left.status) - getStatusSortRank(right.status);
+    if (statusComparison !== 0) {
+      return statusComparison;
     }
 
     if (left.type !== right.type) {
@@ -37,6 +58,28 @@ export function sortTransactionsByDate(transactions: Transaction[]): Transaction
   });
 }
 
+export function normalizeToEndOfDay(date: Date): Date {
+  const normalizedDate = new Date(date);
+  normalizedDate.setHours(23, 59, 59, 999);
+  return normalizedDate;
+}
+
+export function calculateRealizedBalanceUntilDate(transactions: Transaction[], referenceDate: Date): number {
+  const referenceEndOfDay = normalizeToEndOfDay(referenceDate);
+
+  return roundCurrency(
+    sortTransactionsByDate(transactions).reduce((sum, transaction) => {
+      const parsedDate = parseDateString(transaction.date);
+
+      if (!parsedDate || parsedDate.getTime() > referenceEndOfDay.getTime()) {
+        return sum;
+      }
+
+      return sum + getRealizedTransactionImpact(transaction);
+    }, 0)
+  );
+}
+
 export function calculateRunningBalances(
   transactions: Transaction[],
   options: CalculateRunningBalanceOptions = {}
@@ -49,12 +92,16 @@ export function calculateRunningBalances(
         ? transaction.runningBalance
         : undefined;
 
-    if (options.preserveExisting && existingBalance !== undefined) {
+    if (
+      options.preserveExisting &&
+      existingBalance !== undefined &&
+      transaction.status === TransactionStatus.PAID
+    ) {
       runningBalance = existingBalance;
       return transaction;
     }
 
-    runningBalance = roundCurrency(runningBalance + getTransactionImpact(transaction));
+    runningBalance = roundCurrency(runningBalance + getRealizedTransactionImpact(transaction));
 
     return {
       ...transaction,

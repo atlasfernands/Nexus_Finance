@@ -85,7 +85,7 @@ function renderTransactionTableRows(items: Transaction[]) {
 
 function renderUpcomingPaymentRows(upcomingPayments: ReportUpcomingPayment[]) {
   if (upcomingPayments.length === 0) {
-    return `<tr><td colspan="5" class="empty">Nenhuma conta pendente encontrada no periodo selecionado.</td></tr>`;
+    return `<tr><td colspan="7" class="empty">Nenhuma conta pendente encontrada no periodo selecionado.</td></tr>`;
   }
 
   return upcomingPayments
@@ -105,6 +105,10 @@ function renderUpcomingPaymentRows(upcomingPayments: ReportUpcomingPayment[]) {
           <td>${escapeHtml(deadlineLabel)}</td>
           <td>${escapeHtml(transaction.description)}</td>
           <td>${escapeHtml(transaction.category)}</td>
+          <td class="value">${escapeHtml(formatCurrency(transaction.balanceBefore))}</td>
+          <td class="value">${escapeHtml(
+            transaction.shortageAmount > 0 ? formatCurrency(transaction.shortageAmount) : "Coberto"
+          )}</td>
           <td class="value">${escapeHtml(formatCurrency(transaction.amount))}</td>
         </tr>
       `;
@@ -141,8 +145,8 @@ function renderNegativeAlert(firstNegativePendingEvent?: ReportNegativePendingEv
       <span>${escapeHtml(firstNegativePendingEvent.transaction.description)} (${escapeHtml(
         firstNegativePendingEvent.transaction.category
       )})</span><br />
-      <span>Saldo na vespera: ${escapeHtml(formatCurrency(firstNegativePendingEvent.balanceBefore))}</span><br />
-      <span>Saldo depois: ${escapeHtml(formatCurrency(firstNegativePendingEvent.balanceAfter))}</span>
+      <span>Saldo do dia: ${escapeHtml(formatCurrency(firstNegativePendingEvent.balanceBefore))}</span><br />
+      <span>Simulando pagamento: ${escapeHtml(formatCurrency(firstNegativePendingEvent.balanceAfter))}</span>
     </div>
   `;
 }
@@ -351,6 +355,8 @@ export function buildReportHtml(input: ReportHtmlInput) {
                     <th>Prazo</th>
                     <th>Conta</th>
                     <th>Categoria</th>
+                    <th>Saldo do dia</th>
+                    <th>Falta</th>
                     <th>Valor</th>
                   </tr>
                 </thead>

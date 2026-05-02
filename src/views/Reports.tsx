@@ -172,7 +172,7 @@ export default function Reports() {
               </div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl border border-brand-border bg-slate-900 p-3">
-                  <p className="text-[10px] uppercase text-slate-500">Saldo na vespera</p>
+                  <p className="text-[10px] uppercase text-slate-500">Saldo do dia</p>
                   <p className="mt-1 font-mono font-bold text-white">
                     {formatCurrency(firstNegativePendingEvent.balanceBefore)}
                   </p>
@@ -196,7 +196,7 @@ export default function Reports() {
                   {formatCurrency(firstNegativePendingEvent.transaction.amount)}
                 </p>
                 <p className="mt-2 text-xs text-slate-400">
-                  Apos esse pagamento, o saldo projetado fica em {formatCurrency(firstNegativePendingEvent.balanceAfter)}.
+                  Se essa conta for paga, o saldo simulado fica em {formatCurrency(firstNegativePendingEvent.balanceAfter)}.
                 </p>
               </div>
             </div>
@@ -222,7 +222,7 @@ export default function Reports() {
                   <th className="px-3 py-2">Data</th>
                   <th className="px-3 py-2 text-right">Entradas</th>
                   <th className="px-3 py-2 text-right">Saidas</th>
-                  <th className="px-3 py-2 text-right">Saldo apos dia</th>
+                  <th className="px-3 py-2 text-right">Saldo do dia</th>
                   <th className="px-3 py-2">Motivo principal</th>
                   <th className="px-3 py-2 text-right">Impacto</th>
                 </tr>
@@ -249,10 +249,10 @@ export default function Reports() {
                       <td
                         className={cn(
                           "px-3 py-3 text-right font-mono font-bold",
-                          day.saldoAposDia < 0 ? "text-brand-red" : "text-white"
+                          day.saldoRealDoDia < 0 ? "text-brand-red" : "text-white"
                         )}
                       >
-                        {formatCurrency(day.saldoAposDia)}
+                        {formatCurrency(day.saldoRealDoDia)}
                       </td>
                       <td className="px-3 py-3">
                         <div className="flex flex-col">
@@ -301,7 +301,7 @@ export default function Reports() {
                 <th className="px-3 py-2">Status do prazo</th>
                 <th className="px-3 py-2">Conta</th>
                 <th className="px-3 py-2">Categoria</th>
-                <th className="px-3 py-2 text-right">Saldo na vespera</th>
+                <th className="px-3 py-2 text-right">Saldo do dia</th>
                 <th className="px-3 py-2 text-right">Falta</th>
                 <th className="px-3 py-2 text-right">Valor</th>
               </tr>

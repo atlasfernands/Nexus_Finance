@@ -11,23 +11,14 @@ import {
   TransactionSubcategory,
   TransactionType,
 } from "../../types";
-import { compareDateStrings, parseDateString } from "../../lib/utils";
-
-function sortTransactionsByDate(transactions: Transaction[]) {
-  return [...transactions].sort((left, right) => {
-    const dateComparison = compareDateStrings(left.date, right.date);
-
-    if (dateComparison !== 0) {
-      return dateComparison;
-    }
-
-    if (left.type !== right.type) {
-      return left.type === TransactionType.INCOME ? -1 : 1;
-    }
-
-    return left.description.localeCompare(right.description, "pt-BR");
-  });
-}
+import { parseDateString } from "../../lib/utils";
+import {
+  calculateRealizedBalanceUntilDate,
+  getSignedTransactionImpact,
+  normalizeToEndOfDay,
+  roundCurrency,
+  sortTransactionsByDate,
+} from "../../lib/transactionLedger";
 
 function formatReportingPeriodLabel(period: ReportingPeriod): string {
   if (period.granularity === "year") {
@@ -57,6 +48,23 @@ function getPreviousReportingPeriod(period: ReportingPeriod): ReportingPeriod {
   };
 }
 
+function getReportingPeriodReferenceDate(period: ReportingPeriod, now = new Date()): Date {
+  const isCurrentPeriod =
+    period.granularity === "year"
+      ? now.getFullYear() === period.year
+      : now.getFullYear() === period.year && now.getMonth() === period.month;
+
+  if (isCurrentPeriod) {
+    return normalizeToEndOfDay(now);
+  }
+
+  if (period.granularity === "year") {
+    return normalizeToEndOfDay(new Date(period.year, 11, 31));
+  }
+
+  return normalizeToEndOfDay(new Date(period.year, period.month + 1, 0));
+}
+
 function isTransactionInReportingPeriod(date: Date, period: ReportingPeriod): boolean {
   if (period.granularity === "year") {
     return date.getFullYear() === period.year;
@@ -65,15 +73,13 @@ function isTransactionInReportingPeriod(date: Date, period: ReportingPeriod): bo
   return date.getMonth() === period.month && date.getFullYear() === period.year;
 }
 
-function getTransactionImpact(transaction: Transaction) {
-  return transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
-}
-
 export function useFinanceStats() {
   const { state } = useFinance();
   const { reportingPeriod, transactions: allTransactions } = state;
 
   const previousReportingPeriod = getPreviousReportingPeriod(reportingPeriod);
+  const reportingReferenceDate = getReportingPeriodReferenceDate(reportingPeriod);
+  const previousReportingReferenceDate = getReportingPeriodReferenceDate(previousReportingPeriod);
   const currentPeriodLabel = formatReportingPeriodLabel(reportingPeriod);
   const previousPeriodLabel = formatReportingPeriodLabel(previousReportingPeriod);
 
@@ -138,19 +144,15 @@ export function useFinanceStats() {
     }
   });
 
-  const saldoRealizado = realizedPeriodTransactions.reduce(
-    (sum, transaction) => sum + getTransactionImpact(transaction),
-    0
-  );
-
   const pendingBalanceImpact = pendingPeriodTransactions.reduce(
-    (sum, transaction) => sum + getTransactionImpact(transaction),
+    (sum, transaction) => sum + getSignedTransactionImpact(transaction),
     0
   );
   const pendingTransactionsCount = pendingPeriodTransactions.length;
+  const saldoContaRealizado = calculateRealizedBalanceUntilDate(allTransactions, reportingReferenceDate);
   const saldoProjetado = state.preferences.includePendingInBalance
-    ? saldoRealizado + pendingBalanceImpact
-    : saldoRealizado;
+    ? roundCurrency(saldoContaRealizado + pendingBalanceImpact)
+    : saldoContaRealizado;
 
   const entradasMes = realizedPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.INCOME)
@@ -177,19 +179,15 @@ export function useFinanceStats() {
       ? ((saidasMes - saidasPeriodoAnterior) / saidasPeriodoAnterior) * 100
       : 0;
 
-  const saldoMesAtual = realizedPeriodTransactions.reduce(
-    (sum, transaction) => sum + getTransactionImpact(transaction),
-    0
-  );
-  const saldoMesAnterior = realizedPreviousPeriodTransactions.reduce(
-    (sum, transaction) => sum + getTransactionImpact(transaction),
-    0
+  const saldoContaMesAnterior = calculateRealizedBalanceUntilDate(
+    allTransactions,
+    previousReportingReferenceDate
   );
 
   const deltaSaldo =
-    saldoMesAnterior !== 0
-      ? ((saldoMesAtual - saldoMesAnterior) / Math.abs(saldoMesAnterior)) * 100
-      : saldoMesAtual !== 0
+    saldoContaMesAnterior !== 0
+      ? ((saldoContaRealizado - saldoContaMesAnterior) / Math.abs(saldoContaMesAnterior)) * 100
+      : saldoContaRealizado !== 0
         ? 100
         : 0;
 
@@ -205,7 +203,7 @@ export function useFinanceStats() {
     )
     .reduce(
       (sum, transaction) =>
-        sum + getTransactionImpact(transaction),
+        sum + getSignedTransactionImpact(transaction),
       0
     );
 
@@ -214,15 +212,11 @@ export function useFinanceStats() {
   const goalProgressPercent = state.profile.goal > 0 ? (entradasMes / state.profile.goal) * 100 : 0;
   const costSharePercent = entradasMes > 0 ? (saidasMes / entradasMes) * 100 : 0;
 
-  const realizedLedgerBalance = allActiveTransactions
-    .filter((transaction) => transaction.status === TransactionStatus.PAID)
-    .reduce((sum, transaction) => sum + getTransactionImpact(transaction), 0);
-  let runningLedgerBalance = realizedLedgerBalance;
   const enrichedCurrentPeriodPending = sortTransactionsByDate(pendingPeriodTransactions).map((transaction) => {
-    const impact = getTransactionImpact(transaction);
-    const balanceBefore = runningLedgerBalance;
-    runningLedgerBalance += impact;
-    const balanceAfter = runningLedgerBalance;
+    const parsedDate = parseDateString(transaction.date);
+    const balanceBefore = parsedDate ? calculateRealizedBalanceUntilDate(allActiveTransactions, parsedDate) : 0;
+    const impact = getSignedTransactionImpact(transaction);
+    const balanceAfter = roundCurrency(balanceBefore + impact);
 
     return {
       ...transaction,
@@ -235,7 +229,7 @@ export function useFinanceStats() {
     .filter((transaction) => transaction.type === TransactionType.EXPENSE)
     .map((transaction) => ({
       ...transaction,
-      shortageAmount: Math.max(transaction.amount - transaction.balanceBefore, 0),
+      shortageAmount: roundCurrency(Math.max(transaction.amount - transaction.balanceBefore, 0)),
     }));
 
   let firstNegativePendingEvent:
@@ -254,8 +248,10 @@ export function useFinanceStats() {
       date: string;
       entradas: number;
       saidas: number;
+      saldoRealDoDia: number;
       saldoAposDia: number;
       saldoAntesDoDia: number;
+      saldoSimuladoAposPendencias: number;
       transactions: Array<
         Transaction & {
           impact: number;
@@ -273,7 +269,7 @@ export function useFinanceStats() {
         transaction,
         balanceBefore: transaction.balanceBefore,
         balanceAfter: transaction.balanceAfter,
-        shortageAmount: Math.max(transaction.amount - transaction.balanceBefore, 0),
+        shortageAmount: roundCurrency(Math.max(transaction.amount - transaction.balanceBefore, 0)),
       };
     }
 
@@ -282,7 +278,9 @@ export function useFinanceStats() {
       entradas: 0,
       saidas: 0,
       saldoAntesDoDia: transaction.balanceBefore,
-      saldoAposDia: transaction.balanceAfter,
+      saldoAposDia: transaction.balanceBefore,
+      saldoRealDoDia: transaction.balanceBefore,
+      saldoSimuladoAposPendencias: transaction.balanceBefore,
       transactions: [],
     };
 
@@ -292,7 +290,9 @@ export function useFinanceStats() {
       currentDay.saidas += transaction.amount;
     }
 
-    currentDay.saldoAposDia = transaction.balanceAfter;
+    currentDay.saldoSimuladoAposPendencias = roundCurrency(
+      currentDay.saldoSimuladoAposPendencias + transaction.impact
+    );
     currentDay.transactions.push({
       ...transaction,
     });
@@ -313,14 +313,14 @@ export function useFinanceStats() {
     selectedPeriod: reportingPeriod,
     currentPeriodLabel,
     previousPeriodLabel,
-    saldoRealizado,
+    saldoRealizado: saldoContaRealizado,
     saldoProjetado,
     pendingBalanceImpact,
     pendingTransactionsCount,
     entradasMes,
     saidasMes,
-    saldoMesAtual,
-    saldoMesAnterior,
+    saldoMesAtual: saldoContaRealizado,
+    saldoMesAnterior: saldoContaMesAnterior,
     deltaEntradas,
     deltaSaidas,
     deltaSaldo,

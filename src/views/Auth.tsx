@@ -42,7 +42,7 @@ export default function Auth() {
         }
 
         if (!legalAccepted) {
-          throw new Error("Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.");
+          throw new Error("Voce precisa aceitar os Termos de Uso, a Politica de Privacidade e as Diretrizes do Usuario.");
         }
 
         await register(form.name, form.email, form.password, legalAccepted);
@@ -211,8 +211,8 @@ export default function Auth() {
                         className="font-semibold text-brand-green hover:text-white"
                       >
                         Termos de Uso
-                      </a>{" "}
-                      e a{" "}
+                      </a>
+                      , a{" "}
                       <a
                         href="/politica-de-privacidade"
                         target="_blank"
@@ -220,6 +220,15 @@ export default function Auth() {
                         className="font-semibold text-brand-green hover:text-white"
                       >
                         Politica de Privacidade
+                      </a>{" "}
+                      e as{" "}
+                      <a
+                        href="/diretrizes-do-usuario"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-brand-green hover:text-white"
+                      >
+                        Diretrizes do Usuario
                       </a>
                       .
                     </span>

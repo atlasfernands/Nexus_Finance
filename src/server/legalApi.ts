@@ -27,6 +27,12 @@ export const PRIVACY_REQUEST_TYPES: PrivacyRequestType[] = [
   "consent_revocation",
 ];
 
+const REQUIRED_LEGAL_DOCUMENT_TYPES: LegalDocumentType[] = [
+  "terms_of_use",
+  "privacy_policy",
+  "user_guidelines",
+];
+
 export function sendJson(response: ServerResponse, statusCode: number, body: unknown) {
   response.statusCode = statusCode;
   response.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -135,7 +141,7 @@ export async function requireSupabaseUser(request: IncomingMessage) {
 
 export function normalizeDocumentTypes(value: unknown): LegalDocumentType[] {
   if (!Array.isArray(value)) {
-    return ["terms_of_use", "privacy_policy"];
+    return REQUIRED_LEGAL_DOCUMENT_TYPES;
   }
 
   const allowed = new Set(Object.keys(LEGAL_DOCUMENTS));
@@ -143,7 +149,7 @@ export function normalizeDocumentTypes(value: unknown): LegalDocumentType[] {
     return typeof item === "string" && allowed.has(item);
   });
 
-  return documentTypes.length > 0 ? documentTypes : ["terms_of_use", "privacy_policy"];
+  return documentTypes.length > 0 ? documentTypes : REQUIRED_LEGAL_DOCUMENT_TYPES;
 }
 
 export async function fetchLegalDocument(documentType: LegalDocumentType) {

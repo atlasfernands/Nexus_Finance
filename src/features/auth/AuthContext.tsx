@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (name: string, email: string, password: string, legalAccepted: boolean) => {
     if (!legalAccepted) {
-      throw new Error("Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.");
+      throw new Error("Voce precisa aceitar os Termos de Uso, a Politica de Privacidade e as Diretrizes do Usuario.");
     }
 
     const client = getAuthClient();
@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           legal_terms_accepted: true,
           legal_terms_version: LEGAL_DOCUMENT_VERSION,
           legal_privacy_version: LEGAL_DOCUMENT_VERSION,
+          legal_user_guidelines_version: LEGAL_DOCUMENT_VERSION,
           legal_accepted_at: acceptedAt,
           legal_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         },
