@@ -3,8 +3,8 @@ import { findDuplicateTransaction } from "../../lib/transactionDuplicates";
 import {
   createInitialState,
   normalizeFinanceState,
+  prepareTransactionsForState,
   rememberTransactions,
-  sortTransactionsByDate,
 } from "./financeState";
 
 export function financeReducer(state: FinanceState, action: FinanceAction): FinanceState {
@@ -19,7 +19,7 @@ export function financeReducer(state: FinanceState, action: FinanceAction): Fina
       return {
         ...state,
         transactionMemory: rememberTransactions(state.transactionMemory, [action.payload]),
-        transactions: sortTransactionsByDate([...state.transactions, action.payload]),
+        transactions: prepareTransactionsForState([...state.transactions, action.payload]),
       };
     }
     case "UPDATE_TRANSACTION": {
@@ -30,7 +30,7 @@ export function financeReducer(state: FinanceState, action: FinanceAction): Fina
       return {
         ...state,
         transactionMemory: rememberTransactions(state.transactionMemory, [action.payload]),
-        transactions: sortTransactionsByDate(
+        transactions: prepareTransactionsForState(
           state.transactions.map((transaction) => (transaction.id === action.payload.id ? action.payload : transaction))
         ),
       };
@@ -38,13 +38,15 @@ export function financeReducer(state: FinanceState, action: FinanceAction): Fina
     case "DELETE_TRANSACTION":
       return {
         ...state,
-        transactions: state.transactions.filter((transaction) => transaction.id !== action.payload),
+        transactions: prepareTransactionsForState(
+          state.transactions.filter((transaction) => transaction.id !== action.payload)
+        ),
       };
     case "SET_TRANSACTIONS":
       return {
         ...state,
         transactionMemory: rememberTransactions(state.transactionMemory, action.payload),
-        transactions: sortTransactionsByDate(action.payload),
+        transactions: prepareTransactionsForState(action.payload),
       };
     case "UPDATE_PROFILE":
       return { ...state, profile: { ...state.profile, ...action.payload } };

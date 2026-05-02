@@ -8,7 +8,11 @@ import {
   TransactionSubcategory,
   TransactionType,
 } from "../../types";
-import { compareDateStrings, generateId } from "../../lib/utils";
+import { generateId } from "../../lib/utils";
+import {
+  calculateRunningBalances,
+  sortTransactionsByDate as sortLedgerTransactionsByDate,
+} from "../../lib/transactionLedger";
 
 export const STORAGE_KEY = "controle-financeiro-integrado:v2";
 export const LEGACY_STORAGE_KEY = "controle-financeiro-integrado:v1";
@@ -257,9 +261,10 @@ export function normalizeFinanceState(rawState: unknown, fallbackState: FinanceS
   const preferences = (state.preferences ?? {}) as Record<string, unknown>;
   const reportingPeriod = (state.reportingPeriod ?? {}) as Record<string, unknown>;
   const aiInsights = (state.aiInsights ?? {}) as Record<string, unknown>;
-  const transactions = Array.isArray(state.transactions)
+  const normalizedTransactions = Array.isArray(state.transactions)
     ? state.transactions.map(normalizeTransaction)
     : fallbackState.transactions;
+  const transactions = prepareTransactionsForState(normalizedTransactions);
 
   return {
     transactions,
@@ -316,21 +321,13 @@ export function normalizeFinanceState(rawState: unknown, fallbackState: FinanceS
 }
 
 export function sortTransactionsByDate(transactions: Transaction[]): Transaction[] {
-  return [...transactions].sort((left, right) => {
-    if (typeof left.sourceOrder === "number" && typeof right.sourceOrder === "number") {
-      return left.sourceOrder - right.sourceOrder;
-    }
+  return sortLedgerTransactionsByDate(transactions);
+}
 
-    const dateComparison = compareDateStrings(left.date, right.date);
-
-    if (dateComparison !== 0) {
-      return dateComparison;
-    }
-
-    return left.description.localeCompare(right.description, "pt-BR");
-  });
+export function prepareTransactionsForState(transactions: Transaction[]): Transaction[] {
+  return calculateRunningBalances(transactions);
 }
 
 export function mergeTransactions(currentTransactions: Transaction[], nextTransactions: Transaction[]): Transaction[] {
-  return sortTransactionsByDate([...currentTransactions, ...nextTransactions]);
+  return prepareTransactionsForState([...currentTransactions, ...nextTransactions]);
 }

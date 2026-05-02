@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { compareDateStrings, generateId, parseDateString } from "../lib/utils";
+import { calculateRunningBalances } from "../lib/transactionLedger";
 import { Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../types";
 
 export type RawImportCell = string | number | boolean | Date | null | undefined;
@@ -423,7 +424,12 @@ export class ImportService {
       }
     });
 
-    const sortedTransactions = this.sortTransactionsByDate(transactions);
+    const hadMissingRunningBalances = transactions.some(
+      (transaction) => typeof transaction.runningBalance !== "number"
+    );
+    const sortedTransactions = calculateRunningBalances(this.sortTransactionsByDate(transactions), {
+      preserveExisting: true,
+    });
 
     if (
       sortedTransactions.length > 1 &&
@@ -441,6 +447,10 @@ export class ImportService {
       const hasZeroValues = sortedTransactions.some((transaction) => transaction.amount === 0);
       if (hasZeroValues) {
         warnings.push("Algumas transacoes tem valor zero");
+      }
+
+      if (hadMissingRunningBalances) {
+        warnings.push("Saldos acumulados calculados automaticamente para as linhas sem saldo no arquivo");
       }
     }
 

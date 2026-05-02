@@ -96,16 +96,20 @@ describe("ImportService", () => {
 
     expect(result.errors).toEqual([]);
     expect(result.warnings).toContain("Formato Nubank detectado: entradas e saidas foram inferidas pelo sinal do valor.");
+    expect(result.warnings).toContain("Saldos acumulados calculados automaticamente para as linhas sem saldo no arquivo");
     expect(result.warnings).not.toContain("Algumas datas podem estar em formato incorreto");
     expect(result.transactions).toHaveLength(3);
     expect(result.transactions[0].type).toBe(TransactionType.INCOME);
     expect(result.transactions[0].amount).toBe(98.82);
+    expect(result.transactions[0].runningBalance).toBe(98.82);
     expect(result.transactions[0].category).toBe("Pix Recebido");
     expect(result.transactions[0].notes).toContain("69b38454");
     expect(result.transactions[0].tags).toContain("nubank");
     expect(result.transactions[1].type).toBe(TransactionType.EXPENSE);
     expect(result.transactions[1].amount).toBe(98.82);
+    expect(result.transactions[1].runningBalance).toBe(0);
     expect(result.transactions[1].category).toBe("Pix Enviado");
+    expect(result.transactions[2].runningBalance).toBe(33.85);
     expect(result.transactions[2].category).toBe("Estornos Nubank");
   });
 
@@ -123,6 +127,7 @@ describe("ImportService", () => {
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0].description).toBe("Compra no débito - POSTO TREVO ERMITAGE");
     expect(result.transactions[0].type).toBe(TransactionType.EXPENSE);
+    expect(result.transactions[0].runningBalance).toBe(-66);
     expect(result.transactions[0].category).toBe("Compras no Debito");
     expect(result.transactions[0].status).toBe(TransactionStatus.PAID);
   });
