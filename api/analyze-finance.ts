@@ -7,6 +7,7 @@ const MAX_BODY_BYTES = 64 * 1024;
 const MAX_TRANSACTIONS = 30;
 const MAX_TEXT_LENGTH = 120;
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const ANALYSIS_TIME_ZONE = "America/Sao_Paulo";
 
 function sendJson(response: ServerResponse, statusCode: number, body: unknown) {
   response.statusCode = statusCode;
@@ -95,6 +96,22 @@ function sanitizeAnalysisRequest(payload: unknown): AIAnalysisRequest {
   };
 }
 
+function getAnalysisDateContext(date = new Date()) {
+  const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "long",
+    timeZone: ANALYSIS_TIME_ZONE,
+  }).format(date);
+  const currentDayOfMonth = new Intl.DateTimeFormat("pt-BR", {
+    day: "numeric",
+    timeZone: ANALYSIS_TIME_ZONE,
+  }).format(date);
+
+  return {
+    currentDateLabel,
+    currentDayOfMonth,
+  };
+}
+
 function buildPrompt(request: AIAnalysisRequest): string {
   const transactionsContext = request.transactions
     .map(
@@ -102,11 +119,19 @@ function buildPrompt(request: AIAnalysisRequest): string {
         `- ${transaction.date}: ${transaction.description} (${transaction.subcategory}) [${transaction.type}] R$ ${transaction.amount}`
     )
     .join("\n");
+  const { currentDateLabel, currentDayOfMonth } = getAnalysisDateContext();
 
   return `
     Voce e um consultor financeiro senior especializado em MEI e financas pessoais.
     Analise os seguintes dados financeiros do usuario ${request.profile.name} (Loja: ${request.profile.store}):
     PERIODO EM ANALISE: ${request.metrics.currentPeriodLabel}
+
+    CONTEXTO TEMPORAL:
+    - Data atual desta analise: ${currentDateLabel}, dia ${currentDayOfMonth} do mes, fuso ${ANALYSIS_TIME_ZONE}.
+    - O periodo em analise pode ser o mes atual ainda em andamento. Nao trate os dados como mes fechado sem avisar.
+    - Se estivermos no inicio do mes, considere que entradas, saidas, meta e saldo ainda sao parciais.
+    - Nunca presuma que uma conta, venda ou lancamento do dia 1 representa o mes inteiro; use isso apenas como data daquele registro.
+    - Ao avaliar meta mensal e score, compare o resultado com o progresso proporcional ao dia atual do mes.
 
     METRICAS ATUAIS:
     - Saldo Realizado: R$ ${request.metrics.saldoRealizado}
