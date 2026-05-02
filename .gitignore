@@ -8,3 +8,5 @@ coverage/
 !.env.example
 .openclaude-profile.json
 android/local.properties
+
+.vercel

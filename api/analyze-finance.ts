@@ -158,15 +158,15 @@ export default async function handler(request: IncomingMessage, response: Server
     return;
   }
 
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
-    sendJson(response, 503, { error: "Nexus AI Core nao esta configurado no servidor." });
-    return;
-  }
-
   const token = getBearerToken(request);
   if (!token) {
     sendJson(response, 401, { error: "Sessao obrigatoria para gerar diagnostico." });
+    return;
+  }
+
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    sendJson(response, 503, { error: "Nexus AI Core nao esta configurado no servidor." });
     return;
   }
 
