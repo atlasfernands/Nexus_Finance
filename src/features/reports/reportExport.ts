@@ -306,7 +306,7 @@ export function buildReportHtml(input: ReportHtmlInput) {
 
           <div class="summary">
             <div class="card">
-              <div class="card-label">Saldo realizado</div>
+              <div class="card-label">Saldo na conta</div>
               <div class="card-value">${escapeHtml(formatCurrency(input.saldoRealizado))}</div>
             </div>
             <div class="card">

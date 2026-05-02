@@ -134,7 +134,7 @@ function buildPrompt(request: AIAnalysisRequest): string {
     - Ao avaliar meta mensal e score, compare o resultado com o progresso proporcional ao dia atual do mes.
 
     METRICAS ATUAIS:
-    - Saldo Realizado: R$ ${request.metrics.saldoRealizado}
+    - Saldo na conta: R$ ${request.metrics.saldoRealizado}
     - Saldo Projetado: R$ ${request.metrics.saldoProjetado}
     - Entradas no Mes: R$ ${request.metrics.entradasMes}
     - Saidas no Mes: R$ ${request.metrics.saidasMes}

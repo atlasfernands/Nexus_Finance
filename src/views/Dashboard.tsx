@@ -95,7 +95,7 @@ export default function Dashboard() {
           className="trading-card"
         >
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Saldo Realizado</h3>
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Saldo na conta</h3>
             <DollarSign className="text-brand-green" size={14} />
           </div>
           <p className="kpi-value text-white">{formatCurrency(saldoRealizado)}</p>
