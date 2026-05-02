@@ -1,4 +1,4 @@
-import { ReportingPeriod, Transaction, TransactionSubcategory, TransactionType } from "../../types";
+import { ReportingPeriod, Transaction, TransactionStatus, TransactionSubcategory, TransactionType } from "../../types";
 import { parseDateString } from "../../lib/utils";
 
 export interface ComparisonDataItem {
@@ -14,11 +14,15 @@ export type ReportUpcomingPayment = Transaction & {
 };
 
 export function buildTrendData(allTransactions: Transaction[], selectedPeriod: ReportingPeriod) {
+  const realizedTransactions = allTransactions.filter(
+    (transaction) => transaction.status === TransactionStatus.PAID
+  );
+
   if (selectedPeriod.granularity === "year") {
     return Array.from({ length: 12 }, (_, month) => {
       const periodDate = new Date(selectedPeriod.year, month, 1);
 
-      const entradas = allTransactions
+      const entradas = realizedTransactions
         .filter((transaction) => {
           const parsedDate = parseDateString(transaction.date);
 
@@ -31,7 +35,7 @@ export function buildTrendData(allTransactions: Transaction[], selectedPeriod: R
         })
         .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-      const saidas = allTransactions
+      const saidas = realizedTransactions
         .filter((transaction) => {
           const parsedDate = parseDateString(transaction.date);
 
@@ -60,7 +64,7 @@ export function buildTrendData(allTransactions: Transaction[], selectedPeriod: R
     const month = periodDate.getMonth();
     const year = periodDate.getFullYear();
 
-    const entradas = allTransactions
+    const entradas = realizedTransactions
       .filter((transaction) => {
         const parsedDate = parseDateString(transaction.date);
 
@@ -73,7 +77,7 @@ export function buildTrendData(allTransactions: Transaction[], selectedPeriod: R
       })
       .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-    const saidas = allTransactions
+    const saidas = realizedTransactions
       .filter((transaction) => {
         const parsedDate = parseDateString(transaction.date);
 
@@ -95,17 +99,21 @@ export function buildTrendData(allTransactions: Transaction[], selectedPeriod: R
 }
 
 export function buildComparisonData(transactions: Transaction[]): ComparisonDataItem[] {
+  const realizedTransactions = transactions.filter(
+    (transaction) => transaction.status === TransactionStatus.PAID
+  );
+
   return [
     {
       name: "Casa",
-      entradas: transactions
+      entradas: realizedTransactions
         .filter(
           (transaction) =>
             transaction.subcategory === TransactionSubcategory.HOME &&
             transaction.type === TransactionType.INCOME
         )
         .reduce((sum, transaction) => sum + transaction.amount, 0),
-      saidas: transactions
+      saidas: realizedTransactions
         .filter(
           (transaction) =>
             transaction.subcategory === TransactionSubcategory.HOME &&
@@ -115,14 +123,14 @@ export function buildComparisonData(transactions: Transaction[]): ComparisonData
     },
     {
       name: "Loja",
-      entradas: transactions
+      entradas: realizedTransactions
         .filter(
           (transaction) =>
             transaction.subcategory === TransactionSubcategory.STORE &&
             transaction.type === TransactionType.INCOME
         )
         .reduce((sum, transaction) => sum + transaction.amount, 0),
-      saidas: transactions
+      saidas: realizedTransactions
         .filter(
           (transaction) =>
             transaction.subcategory === TransactionSubcategory.STORE &&

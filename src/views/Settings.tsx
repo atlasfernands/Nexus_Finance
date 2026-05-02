@@ -11,7 +11,7 @@ import { cn } from "../lib/utils";
 
 const preferenceItems = [
   { id: "showCents", label: "Exibir centavos nos valores", icon: Shield },
-  { id: "includePendingInBalance", label: "Incluir lancamentos pendentes no saldo total", icon: Database },
+  { id: "includePendingInBalance", label: "Mostrar impacto dos pendentes no saldo projetado", icon: Database },
   { id: "enableAlerts", label: "Ativar alertas de risco financeiro", icon: Bell },
   { id: "animations", label: "Ativar animacoes de interface", icon: Zap },
 ] as const;

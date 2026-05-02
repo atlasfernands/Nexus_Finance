@@ -65,6 +65,10 @@ function isTransactionInReportingPeriod(date: Date, period: ReportingPeriod): bo
   return date.getMonth() === period.month && date.getFullYear() === period.year;
 }
 
+function getTransactionImpact(transaction: Transaction) {
+  return transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
+}
+
 export function useFinanceStats() {
   const { state } = useFinance();
   const { reportingPeriod, transactions: allTransactions } = state;
@@ -84,7 +88,6 @@ export function useFinanceStats() {
   const currentPeriodTransactions = transactions.filter(
     (transaction) => transaction.status !== TransactionStatus.CANCELLED
   );
-  const sortedCurrentPeriodTransactions = sortTransactionsByDate(currentPeriodTransactions);
   const realizedPeriodTransactions = currentPeriodTransactions.filter(
     (transaction) => transaction.status === TransactionStatus.PAID
   );
@@ -100,6 +103,9 @@ export function useFinanceStats() {
       transaction.status !== TransactionStatus.CANCELLED
     );
   });
+  const realizedPreviousPeriodTransactions = previousPeriodTransactions.filter(
+    (transaction) => transaction.status === TransactionStatus.PAID
+  );
 
   const flowData =
     reportingPeriod.granularity === "year"
@@ -114,7 +120,7 @@ export function useFinanceStats() {
           saidas: 0,
         }));
 
-  sortedCurrentPeriodTransactions.forEach((transaction) => {
+  sortTransactionsByDate(realizedPeriodTransactions).forEach((transaction) => {
     const parsedDate = parseDateString(transaction.date);
     if (!parsedDate) {
       return;
@@ -132,38 +138,33 @@ export function useFinanceStats() {
     }
   });
 
-  const saldoRealizado = realizedPeriodTransactions
-    .reduce(
-      (sum, transaction) =>
-        sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
-      0
-    );
-
-  const saldoProjetado = currentPeriodTransactions.reduce(
-    (sum, transaction) =>
-      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+  const saldoRealizado = realizedPeriodTransactions.reduce(
+    (sum, transaction) => sum + getTransactionImpact(transaction),
     0
   );
+
   const pendingBalanceImpact = pendingPeriodTransactions.reduce(
-    (sum, transaction) =>
-      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+    (sum, transaction) => sum + getTransactionImpact(transaction),
     0
   );
   const pendingTransactionsCount = pendingPeriodTransactions.length;
+  const saldoProjetado = state.preferences.includePendingInBalance
+    ? saldoRealizado + pendingBalanceImpact
+    : saldoRealizado;
 
-  const entradasMes = currentPeriodTransactions
+  const entradasMes = realizedPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.INCOME)
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const saidasMes = currentPeriodTransactions
+  const saidasMes = realizedPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.EXPENSE)
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const entradasPeriodoAnterior = previousPeriodTransactions
+  const entradasPeriodoAnterior = realizedPreviousPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.INCOME)
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const saidasPeriodoAnterior = previousPeriodTransactions
+  const saidasPeriodoAnterior = realizedPreviousPeriodTransactions
     .filter((transaction) => transaction.type === TransactionType.EXPENSE)
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
@@ -176,14 +177,12 @@ export function useFinanceStats() {
       ? ((saidasMes - saidasPeriodoAnterior) / saidasPeriodoAnterior) * 100
       : 0;
 
-  const saldoMesAtual = currentPeriodTransactions.reduce(
-    (sum, transaction) =>
-      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+  const saldoMesAtual = realizedPeriodTransactions.reduce(
+    (sum, transaction) => sum + getTransactionImpact(transaction),
     0
   );
-  const saldoMesAnterior = previousPeriodTransactions.reduce(
-    (sum, transaction) =>
-      sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+  const saldoMesAnterior = realizedPreviousPeriodTransactions.reduce(
+    (sum, transaction) => sum + getTransactionImpact(transaction),
     0
   );
 
@@ -206,7 +205,7 @@ export function useFinanceStats() {
     )
     .reduce(
       (sum, transaction) =>
-        sum + (transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount),
+        sum + getTransactionImpact(transaction),
       0
     );
 
@@ -215,16 +214,12 @@ export function useFinanceStats() {
   const goalProgressPercent = state.profile.goal > 0 ? (entradasMes / state.profile.goal) * 100 : 0;
   const costSharePercent = entradasMes > 0 ? (saidasMes / entradasMes) * 100 : 0;
 
-  const ledgerTimeline = allActiveTransactions.map((transaction) => {
-    const impact = transaction.type === TransactionType.INCOME ? transaction.amount : -transaction.amount;
-    return {
-      transaction,
-      impact,
-    };
-  });
-
-  let runningLedgerBalance = 0;
-  const enrichedLedgerTimeline = ledgerTimeline.map(({ transaction, impact }) => {
+  const realizedLedgerBalance = allActiveTransactions
+    .filter((transaction) => transaction.status === TransactionStatus.PAID)
+    .reduce((sum, transaction) => sum + getTransactionImpact(transaction), 0);
+  let runningLedgerBalance = realizedLedgerBalance;
+  const enrichedCurrentPeriodPending = sortTransactionsByDate(pendingPeriodTransactions).map((transaction) => {
+    const impact = getTransactionImpact(transaction);
     const balanceBefore = runningLedgerBalance;
     runningLedgerBalance += impact;
     const balanceAfter = runningLedgerBalance;
@@ -236,12 +231,6 @@ export function useFinanceStats() {
       balanceAfter,
     };
   });
-
-  const enrichedCurrentPeriodPending = enrichedLedgerTimeline.filter(
-    (transaction) =>
-      transaction.status === TransactionStatus.PENDING &&
-      isTransactionInReportingPeriod(parseDateString(transaction.date) ?? new Date(Number.NaN), reportingPeriod)
-  );
   const enrichedPendingExpenseTransactions = enrichedCurrentPeriodPending
     .filter((transaction) => transaction.type === TransactionType.EXPENSE)
     .map((transaction) => ({
