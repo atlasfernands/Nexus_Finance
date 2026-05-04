@@ -45,7 +45,7 @@ npm run android:apk:debug
 Saida esperada:
 
 ```text
-android/app/build/outputs/apk/debug/nexus-finance-1.1.1-debug.apk
+android/app/build/outputs/apk/debug/nexus-finance-1.1.2-debug.apk
 ```
 
 O app Android usa modo imersivo fullscreen. A barra de notificacao e a barra de navegacao ficam escondidas e aparecem temporariamente quando o usuario desliza a borda da tela.
@@ -53,13 +53,13 @@ O app Android usa modo imersivo fullscreen. A barra de notificacao e a barra de 
 APK debug ja separado para envio manual:
 
 ```text
-D:\NexusFinance-APK\nexus-finance-1.1.1-debug-AAAAMMDD-HHmm.apk
+D:\NexusFinance-APK\nexus-finance-1.1.2-debug-AAAAMMDD-HHmm.apk
 ```
 
 Checksum:
 
 ```text
-D:\NexusFinance-APK\nexus-finance-1.1.1-debug-AAAAMMDD-HHmm.sha256.txt
+D:\NexusFinance-APK\nexus-finance-1.1.2-debug-AAAAMMDD-HHmm.sha256.txt
 ```
 
 ## Emulador local
@@ -112,13 +112,13 @@ android/app/build/outputs/bundle/release/app-release.aab
 O APK de teste atual e servido pelo site em:
 
 ```text
-public/downloads/nexus-finance-1.1.1-debug.apk
+public/downloads/nexus-finance-1.1.2-debug.apk
 ```
 
 Link usado pelo app:
 
 ```text
-/downloads/nexus-finance-1.1.1-debug.apk
+/downloads/nexus-finance-1.1.2-debug.apk
 ```
 
 O script `npm run mobile:sync` remove `dist/downloads` antes do `cap sync`, evitando que o APK de download seja empacotado dentro do proprio app Android.
